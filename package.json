@@ -1,0 +1,57 @@
+{
+  "name": "nodedc",
+  "version": "0.0.0",
+  "description": "Native shared-dictionary compression for Node.js web servers.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.22.1"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "build/Release/*.node",
+    "prebuilds",
+    "vendor",
+    "README.md",
+    "LICENSE"
+  ],
+  "gypfile": true,
+  "scripts": {
+    "build": "npm run build:js && npm run build:native",
+    "build:js": "tsc -p tsconfig.json",
+    "build:native": "node-gyp rebuild",
+    "clean": "rm -rf dist build prebuilds",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "build:prebuilts": "prebuildify --napi --strip",
+    "rebuild": "npm run clean && npm run build",
+    "test": "npm run test:unit",
+    "test:unit": "node --import tsx --test test/unit/**/*.test.ts"
+  },
+  "keywords": [
+    "brotli",
+    "zstd",
+    "compression",
+    "dictionary",
+    "node-addon"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "node-addon-api": "^8.2.1",
+    "node-gyp-build": "^4.8.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "node-gyp": "^11.4.2",
+    "prebuildify": "^6.0.1",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.3"
+  }
+}
