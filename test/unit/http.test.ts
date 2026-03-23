@@ -2,9 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  DictionaryStore,
   PreparedDictionary,
   formatAvailableDictionaryHeader,
   negotiateCompression,
+  negotiateCompressionFromStore,
   parseAcceptEncodingHeader,
   parseAvailableDictionaryHeader
 } from '../../src/js/index.js';
@@ -48,4 +50,46 @@ test('parseAvailableDictionaryHeader splits CSV values', () => {
     parseAvailableDictionaryHeader(`:${first}:, :${second}:`),
     [Buffer.alloc(32, 1).toString('hex'), Buffer.alloc(32, 2).toString('hex')]
   );
+});
+
+test('negotiateCompressionFromStore does direct transport lookup by dictionary hash', () => {
+  const store = new DictionaryStore();
+  const brotli = new PreparedDictionary({ algorithm: 'brotli', bytes: Buffer.from('brotli-dict') });
+  const zstd = new PreparedDictionary({ algorithm: 'zstd', bytes: Buffer.from('zstd-dict') });
+  store.add(brotli);
+  store.add(zstd);
+
+  const result = negotiateCompressionFromStore(
+    {
+      acceptEncoding: 'gzip, dcz, dcb',
+      availableDictionary: formatAvailableDictionaryHeader([zstd])
+    },
+    store
+  );
+
+  assert.deepEqual(result, {
+    dictionary: zstd,
+    contentEncoding: 'dcz',
+    transport: 'transport'
+  });
+});
+
+test('negotiateCompressionFromStore falls back to raw encodings when no transport dictionary matches', () => {
+  const store = new DictionaryStore();
+  const brotli = new PreparedDictionary({ algorithm: 'brotli', bytes: Buffer.from('brotli-dict') });
+  store.add(brotli);
+
+  const result = negotiateCompressionFromStore(
+    {
+      acceptEncoding: 'gzip, br',
+      availableDictionary: null
+    },
+    store
+  );
+
+  assert.deepEqual(result, {
+    dictionary: brotli,
+    contentEncoding: 'br',
+    transport: 'raw'
+  });
 });

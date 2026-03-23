@@ -1,4 +1,5 @@
 import { contentEncodingFor, hashBytesToStructuredField, structuredFieldToHashBytes } from './transport.js';
+import { DictionaryStore } from './store.js';
 
 import type { NegotiationInput, NegotiationResult, PreparedDictionaryShape } from './types.js';
 
@@ -70,6 +71,64 @@ export function negotiateCompression<TDictionary extends PreparedDictionaryShape
         contentEncoding: rawEncoding,
         transport: 'raw'
       };
+    }
+  }
+
+  return null;
+}
+
+export function negotiateCompressionFromStore(
+  input: NegotiationInput,
+  store: DictionaryStore
+): NegotiationResult | null {
+  const acceptedEncodings = parseAcceptEncodingHeader(input.acceptEncoding);
+  const availableDictionaries = parseAvailableDictionaryHeader(input.availableDictionary);
+
+  for (const hash of availableDictionaries) {
+    if (acceptedEncodings.has('dcb')) {
+      const brotli = store.get(hash, 'brotli');
+      if (brotli) {
+        return {
+          dictionary: brotli,
+          contentEncoding: 'dcb',
+          transport: 'transport'
+        };
+      }
+    }
+
+    if (acceptedEncodings.has('dcz')) {
+      const zstd = store.get(hash, 'zstd');
+      if (zstd) {
+        return {
+          dictionary: zstd,
+          contentEncoding: 'dcz',
+          transport: 'transport'
+        };
+      }
+    }
+  }
+
+  if (acceptedEncodings.has('br')) {
+    for (const [, dictionary] of store) {
+      if (dictionary.algorithm === 'brotli') {
+        return {
+          dictionary,
+          contentEncoding: 'br',
+          transport: 'raw'
+        };
+      }
+    }
+  }
+
+  if (acceptedEncodings.has('zstd')) {
+    for (const [, dictionary] of store) {
+      if (dictionary.algorithm === 'zstd') {
+        return {
+          dictionary,
+          contentEncoding: 'zstd',
+          transport: 'raw'
+        };
+      }
     }
   }
 

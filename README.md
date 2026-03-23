@@ -74,6 +74,39 @@ Each command writes:
 The metadata includes the SHA-256 dictionary hash. That hash is the important
 identity to use in HTTP negotiation and transport framing.
 
+### Raw vs trained dictionaries
+
+There are two distinct dictionary shapes in practice:
+
+- raw dictionaries: arbitrary bytes, usually a representative HTML, JSON, or text payload
+- trained dictionaries: codec-specific training output
+
+For browser Compression Dictionary Transport:
+
+- use raw dictionaries for `dcb` and `dcz`
+- do not use trained Zstandard `.zdict` files for browser `dcz`
+
+Why:
+
+- browsers store the dictionary resource as a normal downloaded file
+- `Available-Dictionary` is keyed to the SHA-256 of those raw file bytes
+- Zstandard training output includes its own binary dictionary header, so it is
+  a different artifact than the raw file bytes the browser cached
+
+For non-browser/server-controlled use:
+
+- trained Zstandard dictionaries are valid and often useful
+- trained Brotli dictionaries are also valid
+
+Advanced note:
+
+- a trained Zstandard dictionary can be converted into a raw browser dictionary
+  if you strip the Zstandard dictionary header and use only the raw content
+  bytes
+- that conversion is not automated by `@rokob/nodedc` today
+- if you do this yourself, the browser-facing dictionary hash must be computed
+  from the stripped raw bytes, not from the original `.zdict` file
+
 ### Training from JavaScript
 
 ```js
@@ -128,6 +161,25 @@ for (const [algorithm, file] of [
 }
 
 const zstdDictionary = store.get('<sha256 hex>', 'zstd');
+```
+
+For browser CDT, construct the dictionary from the exact raw bytes you intend to
+serve as the dictionary resource:
+
+```js
+const browserDictionary = new PreparedDictionary({
+  algorithm: 'zstd',
+  bytes: await readFile('./dicts/browser-dictionary.txt')
+});
+```
+
+For non-browser Zstandard use, loading a trained `.zdict` file is fine:
+
+```js
+const trainedDictionary = new PreparedDictionary({
+  algorithm: 'zstd',
+  bytes: await readFile('./dicts/app.zdict')
+});
 ```
 
 If your deployed dictionary file is stored compressed on disk, load and
@@ -217,26 +269,30 @@ const header = formatAvailableDictionaryHeader([dictionaryA, dictionaryB]);
 ```js
 import {
   DictionaryStore,
-  negotiateCompression
+  negotiateCompressionFromStore
 } from '@rokob/nodedc';
 
 function selectCompression(req, store) {
-  return negotiateCompression(
+  return negotiateCompressionFromStore(
     {
       acceptEncoding: req.headers['accept-encoding'],
       availableDictionary: req.headers['available-dictionary']
     },
-    Array.from(store, ([, dictionary]) => dictionary)
+    store
   );
 }
 ```
 
-`negotiateCompression()` prefers transport encoding when:
+`negotiateCompressionFromStore()` prefers transport encoding when:
 
 - the client advertises the dictionary hash in `Available-Dictionary`
 - and the client accepts `dcb` or `dcz`
 
 Otherwise it falls back to raw `br` or `zstd` if accepted.
+
+Unlike the generic iterable helper, the store-based helper does direct hash
+lookups for the transport path, which is the better fit for the normal web
+server hot path.
 
 ### End-to-end server sketch
 
@@ -247,7 +303,7 @@ import http from 'node:http';
 import {
   DictionaryStore,
   PreparedDictionary,
-  negotiateCompression
+  negotiateCompressionFromStore
 } from '@rokob/nodedc';
 
 const store = new DictionaryStore();
@@ -263,12 +319,12 @@ store.add(new PreparedDictionary({
 }));
 
 http.createServer(async (req, res) => {
-  const match = negotiateCompression(
+  const match = negotiateCompressionFromStore(
     {
       acceptEncoding: req.headers['accept-encoding'],
       availableDictionary: req.headers['available-dictionary']
     },
-    Array.from(store, ([, dictionary]) => dictionary)
+    store
   );
 
   if (!match) {
@@ -295,6 +351,19 @@ Set `transport: 'transport'` to emit RFC 9842 framed payloads:
 
 - Brotli uses `dcb`
 - Zstandard uses `dcz`
+
+For browser transport:
+
+- the dictionary resource should be a raw dictionary file
+- the response serving that dictionary file may itself use normal HTTP content
+  encoding such as Brotli
+- for `dcz`, the dictionary bytes used by `PreparedDictionary` should match the
+  raw bytes of the served dictionary resource exactly
+
+In other words:
+
+- browser `dcb` and browser `dcz` should be built from raw dictionary bytes
+- trained Zstandard `.zdict` files are for non-browser use cases
 
 `PreparedDictionary.getTransportInfo()` returns the fixed transport header bytes
 and content encoding for a dictionary. Most callers should not need it because

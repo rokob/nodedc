@@ -12,6 +12,7 @@ export {
 } from './transport.js';
 export {
   formatAvailableDictionaryHeader,
+  negotiateCompressionFromStore,
   negotiateCompression,
   parseAcceptEncodingHeader,
   parseAvailableDictionaryHeader
