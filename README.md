@@ -334,6 +334,31 @@ npm run build
 npm run bench:zstd-family
 ```
 
+Example result on an Apple `M1 Max` (`arm64`), macOS `26.1`, Node `v23.9.0`,
+with an `8192` byte trained dictionary and `100000` responses from the same
+payload family:
+
+| implementation | duration (ms) | ops/sec | input MB/sec | compressed/input ratio |
+| --- | ---: | ---: | ---: | ---: |
+| built-in one-shot | 1226.96 | 81502 | 83.32 | 0.448 |
+| nodedc public api | 723.19 | 138275 | 141.35 | 0.058 |
+| nodedc prepared native | 694.82 | 143922 | 147.13 | 0.058 |
+
+Interpretation:
+
+- `built-in one-shot` is Node's built-in `zstdCompressSync()` with a dictionary passed on every call
+- `nodedc public api` is `PreparedDictionary.compress()`
+- `nodedc prepared native` is the same prepared dictionary path with the JS wrapper overhead removed
+
+The important comparison is `built-in one-shot` vs `nodedc public api`: the
+prepared-dictionary reuse path avoids paying dictionary setup cost on every
+response and is substantially faster on this payload family.
+
+Expect absolute numbers to vary with CPU, Node version, payload shape, and
+dictionary size and quality. The benchmark is most useful as a relative
+comparison between built-in one-shot dictionary compression and prepared
+dictionary reuse.
+
 ## Release automation
 
 This repo is wired for:
