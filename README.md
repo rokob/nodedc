@@ -2,24 +2,283 @@
 
 Native shared-dictionary compression for Node.js web servers.
 
-## Status
-
-Core runtime, training, and prebuild plumbing are implemented.
-
-## Intended features
-
-- Reusable prepared dictionaries for Brotli and Zstandard
-- Streaming compression for web server responses
-- Multiple resident dictionaries keyed by hash
-- RFC 9842 transport support (`dcb` and `dcz`)
-- Offline dictionary training tools
-- Native prebuilts for macOS and Linux
-
-## Planned baseline
+## Baseline
 
 - Node `22.22.1+`
 - ESM only
 - C++ addon using N-API
+
+## What it does
+
+- prepares Brotli and Zstandard shared dictionaries once and reuses them across many operations
+- supports one-shot and streaming compression
+- supports multiple dictionaries in memory at once
+- supports RFC 9842 transport encodings (`dcb` and `dcz`)
+- exposes offline dictionary training tools for Brotli and Zstandard
+
+## Install
+
+```bash
+npm install @rokob/nodedc
+```
+
+## Quick start
+
+```js
+import { readFile } from 'node:fs/promises';
+import { PreparedDictionary } from '@rokob/nodedc';
+
+const bytes = await readFile('./dicts/app.zdict');
+
+const dictionary = new PreparedDictionary({
+  algorithm: 'zstd',
+  bytes
+});
+
+const compressed = await dictionary.compress(Buffer.from('hello world'), {
+  quality: 6
+});
+
+const plain = await dictionary.decompress(compressed);
+console.log(plain.toString());
+```
+
+## Training dictionaries
+
+The package ships CLIs for offline dictionary generation.
+
+Zstandard:
+
+```bash
+npx nodedc-train-zstd \
+  --output ./dicts/app.zdict \
+  --dict-size 8192 \
+  ./samples
+```
+
+Brotli:
+
+```bash
+npx nodedc-train-brotli \
+  --output ./dicts/app.dict \
+  --engine dsh \
+  --target-dict-len 12288 \
+  ./samples
+```
+
+Each command writes:
+
+- the dictionary file
+- a metadata JSON file next to it by default
+
+The metadata includes the SHA-256 dictionary hash. That hash is the important
+identity to use in HTTP negotiation and transport framing.
+
+### Training from JavaScript
+
+```js
+import { readFile } from 'node:fs/promises';
+import { trainBrotliDictionary, trainZstdDictionary } from '@rokob/nodedc';
+
+const samples = [
+  await readFile('./samples/a.html'),
+  await readFile('./samples/b.html'),
+  await readFile('./samples/c.html')
+];
+
+const zstd = trainZstdDictionary(samples, {
+  dictSize: 8192,
+  compressionLevel: 6
+});
+
+const brotli = trainBrotliDictionary(samples, {
+  engine: 'dsh',
+  targetDictLen: 12288
+});
+
+console.log(zstd.sha256, zstd.dictionaryId);
+console.log(brotli.sha256);
+```
+
+Useful training options:
+
+- Zstandard: `dictSize`, `compressionLevel`, `dictId`, `k`, `d`, `steps`, `accel`
+- Brotli: `engine`, `targetDictLen`, `blockLen`, `sliceLen`, `minSlicePop`, `chunkLen`, `overlapLen`
+
+## Loading and storing dictionaries
+
+Use `PreparedDictionary` for one dictionary, or `DictionaryStore` if you need
+to keep several dictionaries resident and look them up by hash at request time.
+
+```js
+import { readFile } from 'node:fs/promises';
+import { DictionaryStore, PreparedDictionary } from '@rokob/nodedc';
+
+const store = new DictionaryStore();
+
+for (const [algorithm, file] of [
+  ['zstd', './dicts/app.zdict'],
+  ['brotli', './dicts/app.dict']
+]) {
+  const dictionary = new PreparedDictionary({
+    algorithm,
+    bytes: await readFile(file)
+  });
+  store.add(dictionary);
+}
+
+const zstdDictionary = store.get('<sha256 hex>', 'zstd');
+```
+
+`PreparedDictionary` is immutable. Each stream created from it holds a strong
+reference to the underlying native prepared dictionary, so it stays alive until
+the stream closes.
+
+## Compressing responses
+
+One-shot compression:
+
+```js
+const body = Buffer.from(JSON.stringify({ ok: true }));
+
+const compressed = await dictionary.compress(body, {
+  quality: 6,
+  transport: 'raw'
+});
+```
+
+Streaming compression:
+
+```js
+import { pipeline } from 'node:stream/promises';
+
+await pipeline(
+  sourceStream,
+  dictionary.createCompressStream({
+    quality: 6,
+    transport: 'raw'
+  }),
+  response
+);
+```
+
+Supported tuning options today:
+
+- Zstandard: `quality`, `checksum`
+- Brotli: `quality`, `windowBits`
+- both: `transport`
+
+## HTTP request flow
+
+The usual flow is:
+
+1. Train and deploy dictionaries ahead of time.
+2. Load them at process start into a `DictionaryStore`.
+3. On each request, inspect `Accept-Encoding` and `Available-Dictionary`.
+4. Choose the best dictionary and encoding.
+5. Set `Content-Encoding`.
+6. Compress the response with the selected dictionary.
+
+### Advertising available dictionaries
+
+If you want the client to know which dictionaries the server can use, format an
+`Available-Dictionary` header from your active set:
+
+```js
+import { formatAvailableDictionaryHeader } from '@rokob/nodedc';
+
+const header = formatAvailableDictionaryHeader([dictionaryA, dictionaryB]);
+// Set on a response where advertising available dictionaries makes sense.
+```
+
+### Negotiating a response
+
+```js
+import {
+  DictionaryStore,
+  negotiateCompression
+} from '@rokob/nodedc';
+
+function selectCompression(req, store) {
+  return negotiateCompression(
+    {
+      acceptEncoding: req.headers['accept-encoding'],
+      availableDictionary: req.headers['available-dictionary']
+    },
+    Array.from(store, ([, dictionary]) => dictionary)
+  );
+}
+```
+
+`negotiateCompression()` prefers transport encoding when:
+
+- the client advertises the dictionary hash in `Available-Dictionary`
+- and the client accepts `dcb` or `dcz`
+
+Otherwise it falls back to raw `br` or `zstd` if accepted.
+
+### End-to-end server sketch
+
+```js
+import { createReadStream } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import http from 'node:http';
+import {
+  DictionaryStore,
+  PreparedDictionary,
+  negotiateCompression
+} from '@rokob/nodedc';
+
+const store = new DictionaryStore();
+
+store.add(new PreparedDictionary({
+  algorithm: 'zstd',
+  bytes: await readFile('./dicts/app.zdict')
+}));
+
+store.add(new PreparedDictionary({
+  algorithm: 'brotli',
+  bytes: await readFile('./dicts/app.dict')
+}));
+
+http.createServer(async (req, res) => {
+  const match = negotiateCompression(
+    {
+      acceptEncoding: req.headers['accept-encoding'],
+      availableDictionary: req.headers['available-dictionary']
+    },
+    Array.from(store, ([, dictionary]) => dictionary)
+  );
+
+  if (!match) {
+    res.setHeader('content-type', 'text/html; charset=utf-8');
+    createReadStream('./samples/index.html').pipe(res);
+    return;
+  }
+
+  res.setHeader('content-type', 'text/html; charset=utf-8');
+  res.setHeader('content-encoding', match.contentEncoding);
+
+  createReadStream('./samples/index.html')
+    .pipe(match.dictionary.createCompressStream({
+      quality: 6,
+      transport: match.transport
+    }))
+    .pipe(res);
+}).listen(3000);
+```
+
+## Transport mode
+
+Set `transport: 'transport'` to emit RFC 9842 framed payloads:
+
+- Brotli uses `dcb`
+- Zstandard uses `dcz`
+
+`PreparedDictionary.getTransportInfo()` returns the fixed transport header bytes
+and content encoding for a dictionary. Most callers should not need it because
+`compress()` and `createCompressStream()` already prepend the required header in
+transport mode.
 
 ## Development
 
