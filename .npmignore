@@ -1,0 +1,9 @@
+build/
+node_modules/
+tmp/
+*.log
+docs/
+test/
+bench/
+tools/
+.github/

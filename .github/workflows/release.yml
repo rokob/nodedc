@@ -21,7 +21,7 @@ jobs:
       version: ${{ steps.release.outputs.version }}
     steps:
       - id: release
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@v4.4.0
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
@@ -85,6 +85,7 @@ jobs:
 
       - run: npm ci --ignore-scripts
       - run: npm run build:js
+      - run: npm config delete always-auth || true
 
       - uses: actions/download-artifact@v4
         with:
