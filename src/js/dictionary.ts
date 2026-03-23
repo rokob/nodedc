@@ -4,7 +4,12 @@ import { Transform } from 'node:stream';
 import { NotImplementedPhaseError } from './errors.js';
 import { loadNativeBinding } from './native.js';
 import { createCompressStream, createDecompressStream } from './stream.js';
-import { contentEncodingFor, getTransportInfo } from './transport.js';
+import {
+  contentEncodingFor,
+  getTransportInfo,
+  prependTransportFrame,
+  stripTransportFrame
+} from './transport.js';
 
 import type {
   CompressOptions,
@@ -66,7 +71,11 @@ export class PreparedDictionary implements PreparedDictionaryShape {
 
   createCompressStream(_options: CompressOptions = {}): Transform {
     if (this.algorithm === 'zstd') {
-      return createCompressStream(this.#getNativeZstd(), this.algorithm, _options);
+      return createCompressStream(this.#getNativeZstd(), this.hash, this.algorithm, _options);
+    }
+
+    if (this.algorithm === 'brotli') {
+      return createCompressStream(this.#getNativeBrotli(), this.hash, this.algorithm, _options);
     }
 
     return new UnimplementedDictionaryStream('compress');
@@ -74,7 +83,7 @@ export class PreparedDictionary implements PreparedDictionaryShape {
 
   createDecompressStream(_options: DecompressOptions = {}): Transform {
     if (this.algorithm === 'zstd') {
-      return createDecompressStream(this.#getNativeZstd(), this.algorithm, _options);
+      return createDecompressStream(this.#getNativeZstd(), this.hash, this.algorithm, _options);
     }
 
     return new UnimplementedDictionaryStream('decompress');
@@ -82,12 +91,6 @@ export class PreparedDictionary implements PreparedDictionaryShape {
 
   async compress(input: Buffer | Uint8Array, options: CompressOptions = {}): Promise<Buffer> {
     const normalizedInput = normalizeBytes(input);
-
-    if (options.transport === 'transport') {
-      throw new NotImplementedPhaseError(
-        `Transport-framed ${this.algorithm} compression is not implemented yet.`
-      );
-    }
 
     if (this.algorithm === 'zstd') {
       const nativeOptions: { quality?: number; checksum?: boolean } = {};
@@ -98,7 +101,10 @@ export class PreparedDictionary implements PreparedDictionaryShape {
         nativeOptions.checksum = options.checksum;
       }
 
-      return this.#getNativeZstd().compressSync(normalizedInput, nativeOptions);
+      const compressed = this.#getNativeZstd().compressSync(normalizedInput, nativeOptions);
+      return options.transport === 'transport'
+        ? prependTransportFrame(this.algorithm, this.hash, compressed)
+        : compressed;
     }
 
     if (this.algorithm === 'brotli') {
@@ -110,7 +116,10 @@ export class PreparedDictionary implements PreparedDictionaryShape {
         nativeOptions.windowBits = options.windowBits;
       }
 
-      return this.#getNativeBrotli().compressSync(normalizedInput, nativeOptions);
+      const compressed = this.#getNativeBrotli().compressSync(normalizedInput, nativeOptions);
+      return options.transport === 'transport'
+        ? prependTransportFrame(this.algorithm, this.hash, compressed)
+        : compressed;
     }
 
     throw new NotImplementedPhaseError(
@@ -119,18 +128,17 @@ export class PreparedDictionary implements PreparedDictionaryShape {
   }
 
   async decompress(input: Buffer | Uint8Array, options: DecompressOptions = {}): Promise<Buffer> {
-    if (options.transport === 'transport') {
-      throw new NotImplementedPhaseError(
-        `Transport-framed ${this.algorithm} decompression is not implemented yet.`
-      );
-    }
+    const normalizedInput =
+      options.transport === 'transport'
+        ? stripTransportFrame(this.algorithm, this.hash, normalizeBytes(input))
+        : normalizeBytes(input);
 
     if (this.algorithm === 'zstd') {
-      return this.#getNativeZstd().decompressSync(normalizeBytes(input));
+      return this.#getNativeZstd().decompressSync(normalizedInput);
     }
 
     if (this.algorithm === 'brotli') {
-      return this.#getNativeBrotli().decompressSync(normalizeBytes(input));
+      return this.#getNativeBrotli().decompressSync(normalizedInput);
     }
 
     throw new NotImplementedPhaseError(

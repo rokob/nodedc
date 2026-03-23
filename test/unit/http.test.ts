@@ -20,7 +20,7 @@ test('formatAvailableDictionaryHeader joins hashes', () => {
 
   assert.equal(
     formatAvailableDictionaryHeader([first, second]),
-    `${first.hash}, ${second.hash}`
+    `:${Buffer.from(first.hash, 'hex').toString('base64')}:, :${Buffer.from(second.hash, 'hex').toString('base64')}:`
   );
 });
 
@@ -29,7 +29,7 @@ test('negotiateCompression prefers transport when the dictionary hash is availab
   const result = negotiateCompression(
     {
       acceptEncoding: 'gzip, dcz',
-      availableDictionary: dictionary.hash
+      availableDictionary: formatAvailableDictionaryHeader([dictionary])
     },
     [dictionary]
   );
@@ -42,6 +42,10 @@ test('negotiateCompression prefers transport when the dictionary hash is availab
 });
 
 test('parseAvailableDictionaryHeader splits CSV values', () => {
-  assert.deepEqual(parseAvailableDictionaryHeader('a, b , c'), ['a', 'b', 'c']);
+  const first = Buffer.alloc(32, 1).toString('base64');
+  const second = Buffer.alloc(32, 2).toString('base64');
+  assert.deepEqual(
+    parseAvailableDictionaryHeader(`:${first}:, :${second}:`),
+    [Buffer.alloc(32, 1).toString('hex'), Buffer.alloc(32, 2).toString('hex')]
+  );
 });
-

@@ -1,4 +1,4 @@
-import { contentEncodingFor } from './transport.js';
+import { contentEncodingFor, hashBytesToStructuredField, structuredFieldToHashBytes } from './transport.js';
 
 import type { NegotiationInput, NegotiationResult, PreparedDictionaryShape } from './types.js';
 
@@ -27,13 +27,20 @@ function isTransportEncoding(value: string): value is 'br' | 'zstd' | 'dcb' | 'd
 }
 
 export function parseAvailableDictionaryHeader(value: string | null | undefined): string[] {
-  return parseCsvTokens(value);
+  return parseCsvTokens(value).map((item) => {
+    const [dictionaryId] = item.split(';', 1);
+    const trimmed = (dictionaryId ?? '').trim();
+    if (trimmed.startsWith(':') && trimmed.endsWith(':')) {
+      return structuredFieldToHashBytes(trimmed).toString('hex');
+    }
+    return trimmed;
+  });
 }
 
 export function formatAvailableDictionaryHeader(
   dictionaries: Iterable<Pick<PreparedDictionaryShape, 'hash'>>
 ): string {
-  return Array.from(dictionaries, (dictionary) => dictionary.hash).join(", ");
+  return Array.from(dictionaries, (dictionary) => hashBytesToStructuredField(dictionary.hash)).join(', ');
 }
 
 export function negotiateCompression<TDictionary extends PreparedDictionaryShape>(

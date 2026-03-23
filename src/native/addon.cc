@@ -1,5 +1,6 @@
 #include <napi.h>
 
+#include "brotli_stream.h"
 #include "brotli_prepared_dictionary.h"
 #include "prepared_dictionary.h"
 #include "zstd_stream.h"
@@ -21,6 +22,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("napiVersion", Napi::Number::New(env, NAPI_VERSION));
   exports.Set("getBindingInfo", Napi::Function::New(env, GetBindingInfo));
   exports.Set("BrotliPreparedDictionary", nodedc::BrotliPreparedDictionary::Init(env));
+  exports.Set("BrotliCompressor", nodedc::BrotliCompressor::Init(env));
   exports.Set("ZstdPreparedDictionary", nodedc::PreparedDictionary::Init(env));
   exports.Set("ZstdCompressor", nodedc::ZstdCompressor::Init(env));
   exports.Set("ZstdDecompressor", nodedc::ZstdDecompressor::Init(env));

@@ -19,6 +19,11 @@ class BrotliPreparedDictionary : public Napi::ObjectWrap<BrotliPreparedDictionar
   BrotliPreparedDictionary(const Napi::CallbackInfo& info);
   ~BrotliPreparedDictionary() override;
 
+  const BrotliEncoderPreparedDictionaryStruct* prepared() const { return prepared_; }
+  static std::vector<std::uint8_t> AsByteVector(const Napi::Value& value, const char* name);
+  static int GetQuality(const Napi::Object& options);
+  static int GetWindowBits(const Napi::Object& options);
+
  private:
   static Napi::FunctionReference constructor_;
 
@@ -26,10 +31,6 @@ class BrotliPreparedDictionary : public Napi::ObjectWrap<BrotliPreparedDictionar
   Napi::Value GetSize(const Napi::CallbackInfo& info);
   Napi::Value CompressSync(const Napi::CallbackInfo& info);
   Napi::Value DecompressSync(const Napi::CallbackInfo& info);
-
-  static std::vector<std::uint8_t> AsByteVector(const Napi::Value& value, const char* name);
-  static int GetQuality(const Napi::Object& options);
-  static int GetWindowBits(const Napi::Object& options);
 
   static Napi::Buffer<std::uint8_t> CollectEncoderOutput(
       Napi::Env env,
@@ -44,4 +45,3 @@ class BrotliPreparedDictionary : public Napi::ObjectWrap<BrotliPreparedDictionar
 }  // namespace nodedc
 
 #endif  // NODEDC_BROTLI_PREPARED_DICTIONARY_H_
-

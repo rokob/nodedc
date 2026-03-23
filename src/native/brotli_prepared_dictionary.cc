@@ -4,6 +4,9 @@
 #include <brotli/encode.h>
 #include <brotli/shared_dictionary.h>
 
+#include "../../vendor/brotli/c/dec/static_init.h"
+#include "../../vendor/brotli/c/enc/static_init.h"
+
 #include <cstdint>
 #include <vector>
 
@@ -15,10 +18,10 @@ namespace {
 
 constexpr std::size_t kOutputChunkSize = 1U << 16;
 
-void ThrowDecoderError(Napi::Env env, BrotliDecoderState* state, const char* context) {
+std::string DecoderErrorMessage(BrotliDecoderState* state, const char* context) {
   const BrotliDecoderErrorCode code = BrotliDecoderGetErrorCode(state);
   const char* message = BrotliDecoderErrorString(code);
-  throw Napi::Error::New(env, std::string(context) + ": " + (message ? message : "unknown error"));
+  return std::string(context) + ": " + (message ? message : "unknown error");
 }
 
 }  // namespace
@@ -136,13 +139,15 @@ Napi::Buffer<std::uint8_t> BrotliPreparedDictionary::CollectEncoderOutput(
       break;
     }
 
+    size_t available_out = 0;
+    uint8_t* next_out = nullptr;
     if (!BrotliEncoderCompressStream(
             state,
             available_in == 0 ? BROTLI_OPERATION_FINISH : BROTLI_OPERATION_PROCESS,
             &available_in,
             &next_in,
-            nullptr,
-            nullptr,
+            &available_out,
+            &next_out,
             nullptr)) {
       throw Napi::Error::New(env, "Brotli compression failed.");
     }
@@ -162,6 +167,9 @@ Napi::Value BrotliPreparedDictionary::CompressSync(const Napi::CallbackInfo& inf
       info.Length() > 1 && info[1].IsObject() ? info[1].As<Napi::Object>() : Napi::Object::New(env);
   const std::vector<std::uint8_t> input = AsByteVector(info[0], "input");
 
+  if (!BrotliEncoderEnsureStaticInit()) {
+    throw Napi::Error::New(env, "Failed to initialize Brotli encoder static state.");
+  }
   BrotliEncoderState* state = BrotliEncoderCreateInstance(nullptr, nullptr, nullptr);
   if (state == nullptr) {
     throw Napi::Error::New(env, "Failed to create the Brotli encoder state.");
@@ -189,6 +197,9 @@ Napi::Value BrotliPreparedDictionary::DecompressSync(const Napi::CallbackInfo& i
   }
 
   const std::vector<std::uint8_t> input = AsByteVector(info[0], "input");
+  if (!BrotliDecoderEnsureStaticInit()) {
+    throw Napi::Error::New(env, "Failed to initialize Brotli decoder static state.");
+  }
   BrotliDecoderState* state = BrotliDecoderCreateInstance(nullptr, nullptr, nullptr);
   if (state == nullptr) {
     throw Napi::Error::New(env, "Failed to create the Brotli decoder state.");
@@ -208,7 +219,6 @@ Napi::Value BrotliPreparedDictionary::DecompressSync(const Napi::CallbackInfo& i
   std::vector<std::uint8_t> output;
 
   for (;;) {
-    const std::size_t previous_in = available_in;
     const std::size_t previous_size = output.size();
     output.resize(previous_size + kOutputChunkSize);
 
@@ -238,8 +248,9 @@ Napi::Value BrotliPreparedDictionary::DecompressSync(const Napi::CallbackInfo& i
       continue;
     }
 
+    const std::string message = DecoderErrorMessage(state, "Brotli decompression failed");
     BrotliDecoderDestroyInstance(state);
-    ThrowDecoderError(env, state, "Brotli decompression failed");
+    throw Napi::Error::New(env, message);
   }
 
   BrotliDecoderDestroyInstance(state);
@@ -247,4 +258,3 @@ Napi::Value BrotliPreparedDictionary::DecompressSync(const Napi::CallbackInfo& i
 }
 
 }  // namespace nodedc
-

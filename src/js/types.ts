@@ -23,6 +23,31 @@ export interface DecompressOptions {
   params?: Record<number, number>;
 }
 
+export interface TrainZstdDictionaryOptions {
+  dictSize?: number;
+  compressionLevel?: number;
+  notificationLevel?: number;
+  dictId?: number;
+  k?: number;
+  d?: number;
+  steps?: number;
+  f?: number;
+  accel?: number;
+  splitPoint?: number;
+  shrink?: number;
+  shrinkMaxRegression?: number;
+}
+
+export interface TrainBrotliDictionaryOptions {
+  engine?: 'dm' | 'dsh' | 'sieve';
+  blockLen?: number;
+  sliceLen?: number;
+  targetDictLen?: number;
+  minSlicePop?: number;
+  chunkLen?: number;
+  overlapLen?: number;
+}
+
 export interface PreparedDictionaryShape {
   readonly algorithm: Algorithm;
   readonly hash: string;
@@ -44,4 +69,3 @@ export interface NegotiationResult<TDictionary extends PreparedDictionaryShape =
   contentEncoding: 'br' | 'zstd' | 'dcb' | 'dcz';
   transport: TransportMode;
 }
-

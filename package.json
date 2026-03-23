@@ -3,6 +3,10 @@
   "version": "0.0.0",
   "description": "Native shared-dictionary compression for Node.js web servers.",
   "type": "module",
+  "bin": {
+    "nodedc-train-zstd": "./bin/nodedc-train-zstd.mjs",
+    "nodedc-train-brotli": "./bin/nodedc-train-brotli.mjs"
+  },
   "engines": {
     "node": ">=22.22.1"
   },
@@ -15,6 +19,7 @@
     }
   },
   "files": [
+    "bin",
     "dist",
     "build/Release/*.node",
     "prebuilds",
@@ -30,6 +35,8 @@
     "clean": "rm -rf dist build prebuilds",
     "lint": "tsc -p tsconfig.json --noEmit",
     "build:prebuilts": "prebuildify --napi --strip",
+    "train:zstd": "node ./bin/nodedc-train-zstd.mjs",
+    "train:brotli": "node ./bin/nodedc-train-brotli.mjs",
     "rebuild": "npm run clean && npm run build",
     "test": "npm run test:unit",
     "test:unit": "node --import tsx --test test/unit/**/*.test.ts"
@@ -44,8 +51,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "node-addon-api": "^8.2.1",
-    "node-gyp-build": "^4.8.4"
+    "node-addon-api": "^8.2.1"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",

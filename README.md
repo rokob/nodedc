@@ -33,3 +33,16 @@ Build the addon before running tests:
 npm run build
 npm test
 ```
+
+Offline dictionary training is exposed as package CLIs:
+
+```bash
+npm run train:zstd -- --output tmp/app.zdict samples/
+npm run train:brotli -- --output tmp/app.dict samples/
+```
+
+Those commands are backed by a separate native training addon target so the
+public CLI does not depend on ad hoc compile-on-first-use scripts.
+
+The current tree still needs vendored `vendor/divsufsort` and `vendor/esaxx`
+before Brotli training itself can be enabled.
