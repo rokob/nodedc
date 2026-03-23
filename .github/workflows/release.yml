@@ -79,7 +79,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22.22.1
+          node-version: 24
           cache: npm
           registry-url: https://registry.npmjs.org
 
@@ -94,7 +94,7 @@ jobs:
 
       - run: npm run verify:prebuilts
       - run: npm pack --dry-run
-      - run: npm publish --provenance --access public
+      - run: npm publish --access public
 
       - run: tar -czf nodedc-prebuilds-${{ needs.release-please.outputs.tag_name }}.tar.gz prebuilds
 
