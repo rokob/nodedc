@@ -1,5 +1,5 @@
 {
-  "name": "nodedc",
+  "name": "@rokob/nodedc",
   "version": "0.1.0",
   "description": "Native shared-dictionary compression for Node.js web servers.",
   "type": "module",

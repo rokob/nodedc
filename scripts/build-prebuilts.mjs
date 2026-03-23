@@ -12,7 +12,7 @@ const runtimeTarget = path.join(tupleDir, 'nodedc.node');
 const trainingSource = path.join(releaseDir, 'nodedc_train.node');
 const trainingTarget = path.join(tupleDir, 'nodedc_train.node');
 
-await run('npx', ['prebuildify', '--napi', '--strip']);
+await run('npx', ['prebuildify', '--napi', '--strip', '--name', 'nodedc']);
 
 await mkdir(tupleDir, { recursive: true });
 await copyFile(trainingSource, trainingTarget);
