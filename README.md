@@ -6,10 +6,6 @@ Native shared-dictionary compression for Node.js web servers.
 
 Core runtime, training, and prebuild plumbing are implemented.
 
-The implementation plan lives here:
-
-- [docs/implementation-plan.md](/Users/dragonbear/code/nodedc/docs/implementation-plan.md)
-
 ## Intended features
 
 - Reusable prepared dictionaries for Brotli and Zstandard
