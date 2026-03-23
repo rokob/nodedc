@@ -10,12 +10,12 @@
   "engines": {
     "node": ">=22.22.1"
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/js/index.js",
+  "types": "./dist/js/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/js/index.d.ts",
+      "import": "./dist/js/index.js"
     }
   },
   "files": [
@@ -35,6 +35,7 @@
     "clean": "rm -rf dist build prebuilds",
     "lint": "tsc -p tsconfig.json --noEmit",
     "build:prebuilts": "node ./scripts/build-prebuilts.mjs",
+    "bench:zstd-family": "node ./bench/zstd-family.mjs",
     "verify:prebuilts": "node ./scripts/verify-prebuilds.mjs",
     "train:zstd": "node ./bin/nodedc-train-zstd.mjs",
     "train:brotli": "node ./bin/nodedc-train-brotli.mjs",

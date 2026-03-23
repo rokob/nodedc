@@ -2,10 +2,18 @@ import type { Transform } from 'node:stream';
 
 export type Algorithm = 'brotli' | 'zstd';
 export type TransportMode = 'raw' | 'transport';
+export type FileCompression = 'none' | 'brotli' | 'zstd';
 
 export interface PreparedDictionaryInit {
   algorithm: Algorithm;
   bytes: Buffer | Uint8Array;
+  hash?: string;
+  metadata?: Record<string, string>;
+}
+
+export interface PreparedDictionaryFromFileOptions {
+  algorithm: Algorithm;
+  compression?: FileCompression;
   hash?: string;
   metadata?: Record<string, string>;
 }

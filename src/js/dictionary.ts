@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { Transform } from 'node:stream';
+import { brotliDecompressSync, zstdDecompressSync } from 'node:zlib';
 
 import { NotImplementedPhaseError } from './errors.js';
 import { loadNativeBinding } from './native.js';
@@ -14,6 +17,8 @@ import {
 import type {
   CompressOptions,
   DecompressOptions,
+  FileCompression,
+  PreparedDictionaryFromFileOptions,
   PreparedDictionaryInit,
   PreparedDictionaryShape
 } from './types.js';
@@ -43,6 +48,18 @@ function sha256Hex(bytes: Buffer): string {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
+function decompressFileBytes(bytes: Buffer, compression: FileCompression): Buffer {
+  if (compression === 'none') {
+    return bytes;
+  }
+
+  if (compression === 'brotli') {
+    return brotliDecompressSync(bytes);
+  }
+
+  return zstdDecompressSync(bytes);
+}
+
 export class PreparedDictionary implements PreparedDictionaryShape {
   readonly algorithm;
   readonly hash;
@@ -63,6 +80,28 @@ export class PreparedDictionary implements PreparedDictionaryShape {
     if (this.algorithm !== 'brotli' && this.algorithm !== 'zstd') {
       throw new TypeError(`Unsupported algorithm: ${String(this.algorithm)}`);
     }
+  }
+
+  static async fromFile(
+    filePath: string | URL,
+    options: PreparedDictionaryFromFileOptions
+  ): Promise<PreparedDictionary> {
+    const bytes = await readFile(filePath);
+    return new PreparedDictionary({
+      ...options,
+      bytes: decompressFileBytes(bytes, options.compression ?? 'none')
+    });
+  }
+
+  static fromFileSync(
+    filePath: string | URL,
+    options: PreparedDictionaryFromFileOptions
+  ): PreparedDictionary {
+    const bytes = readFileSync(filePath);
+    return new PreparedDictionary({
+      ...options,
+      bytes: decompressFileBytes(bytes, options.compression ?? 'none')
+    });
   }
 
   get bytes(): Buffer {

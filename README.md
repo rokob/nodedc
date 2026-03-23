@@ -130,6 +130,27 @@ for (const [algorithm, file] of [
 const zstdDictionary = store.get('<sha256 hex>', 'zstd');
 ```
 
+If your deployed dictionary file is stored compressed on disk, load and
+decompress it in one step:
+
+```js
+import { PreparedDictionary } from '@rokob/nodedc';
+
+const dictionary = await PreparedDictionary.fromFile('/app/dicts/app.zdict.br', {
+  algorithm: 'zstd',
+  compression: 'brotli'
+});
+```
+
+There is also a synchronous form:
+
+```js
+const dictionary = PreparedDictionary.fromFileSync('/app/dicts/app.dict.br', {
+  algorithm: 'brotli',
+  compression: 'brotli'
+});
+```
+
 `PreparedDictionary` is immutable. Each stream created from it holds a strong
 reference to the underlying native prepared dictionary, so it stays alive until
 the stream closes.
@@ -304,6 +325,13 @@ Prebuild packaging for both native targets can be verified locally with:
 ```bash
 npm run build:prebuilts
 npm run verify:prebuilts
+```
+
+Run the Zstd same-family one-shot benchmark with:
+
+```bash
+npm run build
+npm run bench:zstd-family
 ```
 
 ## Release automation
