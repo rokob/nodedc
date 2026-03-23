@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/rokob/nodedc/compare/nodedc-v0.2.0...nodedc-v0.2.1) (2026-03-23)
+
+
+### Bug Fixes
+
+* use node 24 for trusted publishing ([f3450a8](https://github.com/rokob/nodedc/commit/f3450a8fac15bd9ce8637ca289eabc0af9614fa7))
+
 ## [0.2.0](https://github.com/rokob/nodedc/compare/nodedc-v0.1.0...nodedc-v0.2.0) (2026-03-23)
 
 
