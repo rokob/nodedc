@@ -86,7 +86,11 @@
         "ZSTD_DISABLE_ASM=1"
       ],
       "cflags_cc": [
+        "-fexceptions",
         "-std=c++20"
+      ],
+      "cflags_cc!": [
+        "-fno-exceptions"
       ],
       "xcode_settings": {
         "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
@@ -161,7 +165,11 @@
         "ZDICT_STATIC_LINKING_ONLY"
       ],
       "cflags_cc": [
+        "-fexceptions",
         "-std=c++20"
+      ],
+      "cflags_cc!": [
+        "-fno-exceptions"
       ],
       "xcode_settings": {
         "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
