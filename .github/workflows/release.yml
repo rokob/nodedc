@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      sha: ${{ steps.release.outputs.sha }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+
+  prebuild:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            label: linux-x64
+          - runner: ubuntu-24.04-arm
+            label: linux-arm64
+          - runner: macos-latest
+            label: macos-x64
+          - runner: macos-14
+            label: macos-arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.sha }}
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.1
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build:js
+      - run: npm run build:prebuilts
+      - run: npm run verify:prebuilts
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prebuild-${{ matrix.label }}
+          path: prebuilds/
+
+  publish:
+    needs:
+      - release-please
+      - prebuild
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.sha }}
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.1
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci --ignore-scripts
+      - run: npm run build:js
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: prebuild-*
+          path: prebuilds
+          merge-multiple: true
+
+      - run: npm run verify:prebuilts
+      - run: npm pack --dry-run
+      - run: npm publish --provenance --access public
+
+      - run: tar -czf nodedc-prebuilds-${{ needs.release-please.outputs.tag_name }}.tar.gz prebuilds
+
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload ${{ needs.release-please.outputs.tag_name }} nodedc-prebuilds-${{ needs.release-please.outputs.tag_name }}.tar.gz --clobber

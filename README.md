@@ -4,7 +4,7 @@ Native shared-dictionary compression for Node.js web servers.
 
 ## Status
 
-This repository is in the design and planning stage.
+Core runtime, training, and prebuild plumbing are implemented.
 
 The implementation plan lives here:
 
@@ -44,5 +44,22 @@ npm run train:brotli -- --output tmp/app.dict samples/
 Those commands are backed by a separate native training addon target so the
 public CLI does not depend on ad hoc compile-on-first-use scripts.
 
-The current tree still needs vendored `vendor/divsufsort` and `vendor/esaxx`
-before Brotli training itself can be enabled.
+Prebuild packaging for both native targets can be verified locally with:
+
+```bash
+npm run build:prebuilts
+npm run verify:prebuilts
+```
+
+## Release automation
+
+This repo is wired for:
+
+- `release-please` release PRs and versioning
+- matrix prebuild generation for macOS and Linux
+- aggregated npm publishing with bundled prebuilts
+- Dependabot updates for npm, GitHub Actions, and git submodules
+
+Use Conventional Commits on `main`-bound changes (`feat:`, `fix:`, `chore:`).
+`release-please` uses those commit messages to decide whether to cut a release
+and what semver bump to make.

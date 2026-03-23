@@ -2,9 +2,9 @@ name: Prebuild
 
 on:
   workflow_dispatch:
-  release:
-    types:
-      - published
+
+permissions:
+  contents: write
 
 jobs:
   prebuild:
@@ -23,18 +23,48 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22.22.1
           cache: npm
 
-      - run: npm install
-      - run: npm run build
-      - run: npm run prebuild
+      - run: npm ci
+      - run: npm run build:js
+      - run: npm run build:prebuilts
+      - run: npm run verify:prebuilts
 
       - uses: actions/upload-artifact@v4
         with:
           name: prebuild-${{ matrix.label }}
           path: prebuilds/
 
+  bundle:
+    needs: prebuild
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: prebuild-*
+          path: prebuilds
+          merge-multiple: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.1
+
+      - run: node ./scripts/verify-prebuilds.mjs
+
+      - run: tar -czf nodedc-prebuilds-${{ github.event.release.tag_name || github.sha }}.tar.gz prebuilds
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prebuilds-bundle
+          path: nodedc-prebuilds-${{ github.event.release.tag_name || github.sha }}.tar.gz
+
+      - if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload ${{ github.event.release.tag_name }} nodedc-prebuilds-${{ github.event.release.tag_name }}.tar.gz --clobber
