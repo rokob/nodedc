@@ -87,7 +87,7 @@ jobs:
       - run: npm run build:js
       - run: npm config delete always-auth || true
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: prebuild-*
           path: prebuilds
