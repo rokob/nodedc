@@ -1,6 +1,6 @@
 {
   "name": "@rokob/nodedc",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Native shared-dictionary compression for Node.js web servers.",
   "type": "module",
   "bin": {
