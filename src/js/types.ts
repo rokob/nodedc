@@ -72,6 +72,11 @@ export interface NegotiationInput {
   availableDictionary?: string | null;
 }
 
+export interface NegotiationOptions {
+  algorithm?: Algorithm;
+  preferredAlgorithm?: Algorithm;
+}
+
 export interface NegotiationResult<TDictionary extends PreparedDictionaryShape = PreparedDictionaryShape> {
   dictionary: TDictionary;
   contentEncoding: 'br' | 'zstd' | 'dcb' | 'dcz';

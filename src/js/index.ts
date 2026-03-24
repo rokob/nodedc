@@ -32,6 +32,7 @@ export type {
   DecompressOptions,
   FileCompression,
   NegotiationInput,
+  NegotiationOptions,
   NegotiationResult,
   PreparedDictionaryFromFileOptions,
   PreparedDictionaryInit,

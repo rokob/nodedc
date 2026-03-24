@@ -278,7 +278,8 @@ function selectCompression(req, store) {
       acceptEncoding: req.headers['accept-encoding'],
       availableDictionary: req.headers['available-dictionary']
     },
-    store
+    store,
+    { algorithm: 'zstd' }
   );
 }
 ```
@@ -289,6 +290,13 @@ function selectCompression(req, store) {
 - and the client accepts `dcb` or `dcz`
 
 Otherwise it falls back to raw `br` or `zstd` if accepted.
+
+Pass `{ algorithm: 'brotli' }` to restrict negotiation to the `dcb` / `br`
+family, `{ algorithm: 'zstd' }` to restrict negotiation to `dcz` / `zstd`, or
+omit the option to let the helper consider either family.
+
+When both families are allowed, negotiation prefers Zstandard first by default.
+Pass `{ preferredAlgorithm: 'brotli' }` if you want Brotli first instead.
 
 Unlike the generic iterable helper, the store-based helper does direct hash
 lookups for the transport path, which is the better fit for the normal web

@@ -43,6 +43,62 @@ test('negotiateCompression prefers transport when the dictionary hash is availab
   });
 });
 
+test('negotiateCompression can restrict negotiation to a single algorithm family', () => {
+  const brotli = new PreparedDictionary({ algorithm: 'brotli', bytes: Buffer.from('brotli-dict') });
+  const zstd = new PreparedDictionary({ algorithm: 'zstd', bytes: Buffer.from('zstd-dict') });
+  const result = negotiateCompression(
+    {
+      acceptEncoding: 'dcb, dcz, br, zstd',
+      availableDictionary: formatAvailableDictionaryHeader([brotli, zstd])
+    },
+    [brotli, zstd],
+    { algorithm: 'zstd' }
+  );
+
+  assert.deepEqual(result, {
+    dictionary: zstd,
+    contentEncoding: 'dcz',
+    transport: 'transport'
+  });
+});
+
+test('negotiateCompression prefers zstd before brotli by default', () => {
+  const brotli = new PreparedDictionary({ algorithm: 'brotli', bytes: Buffer.from('brotli-dict') });
+  const zstd = new PreparedDictionary({ algorithm: 'zstd', bytes: Buffer.from('zstd-dict') });
+  const result = negotiateCompression(
+    {
+      acceptEncoding: 'dcb, dcz, br, zstd',
+      availableDictionary: formatAvailableDictionaryHeader([brotli, zstd])
+    },
+    [brotli, zstd]
+  );
+
+  assert.deepEqual(result, {
+    dictionary: zstd,
+    contentEncoding: 'dcz',
+    transport: 'transport'
+  });
+});
+
+test('negotiateCompression can prefer brotli before zstd', () => {
+  const brotli = new PreparedDictionary({ algorithm: 'brotli', bytes: Buffer.from('brotli-dict') });
+  const zstd = new PreparedDictionary({ algorithm: 'zstd', bytes: Buffer.from('zstd-dict') });
+  const result = negotiateCompression(
+    {
+      acceptEncoding: 'dcb, dcz, br, zstd',
+      availableDictionary: formatAvailableDictionaryHeader([brotli, zstd])
+    },
+    [zstd, brotli],
+    { preferredAlgorithm: 'brotli' }
+  );
+
+  assert.deepEqual(result, {
+    dictionary: brotli,
+    contentEncoding: 'dcb',
+    transport: 'transport'
+  });
+});
+
 test('parseAvailableDictionaryHeader splits CSV values', () => {
   const first = Buffer.alloc(32, 1).toString('base64');
   const second = Buffer.alloc(32, 2).toString('base64');
@@ -74,6 +130,51 @@ test('negotiateCompressionFromStore does direct transport lookup by dictionary h
   });
 });
 
+test('negotiateCompressionFromStore prefers zstd before brotli by default', () => {
+  const store = new DictionaryStore();
+  const brotli = new PreparedDictionary({ algorithm: 'brotli', bytes: Buffer.from('brotli-dict') });
+  const zstd = new PreparedDictionary({ algorithm: 'zstd', bytes: Buffer.from('zstd-dict') });
+  store.add(brotli);
+  store.add(zstd);
+
+  const result = negotiateCompressionFromStore(
+    {
+      acceptEncoding: 'dcb, dcz, br, zstd',
+      availableDictionary: formatAvailableDictionaryHeader([brotli, zstd])
+    },
+    store
+  );
+
+  assert.deepEqual(result, {
+    dictionary: zstd,
+    contentEncoding: 'dcz',
+    transport: 'transport'
+  });
+});
+
+test('negotiateCompressionFromStore can prefer brotli before zstd', () => {
+  const store = new DictionaryStore();
+  const brotli = new PreparedDictionary({ algorithm: 'brotli', bytes: Buffer.from('brotli-dict') });
+  const zstd = new PreparedDictionary({ algorithm: 'zstd', bytes: Buffer.from('zstd-dict') });
+  store.add(brotli);
+  store.add(zstd);
+
+  const result = negotiateCompressionFromStore(
+    {
+      acceptEncoding: 'dcb, dcz, br, zstd',
+      availableDictionary: formatAvailableDictionaryHeader([brotli, zstd])
+    },
+    store,
+    { preferredAlgorithm: 'brotli' }
+  );
+
+  assert.deepEqual(result, {
+    dictionary: brotli,
+    contentEncoding: 'dcb',
+    transport: 'transport'
+  });
+});
+
 test('negotiateCompressionFromStore falls back to raw encodings when no transport dictionary matches', () => {
   const store = new DictionaryStore();
   const brotli = new PreparedDictionary({ algorithm: 'brotli', bytes: Buffer.from('brotli-dict') });
@@ -91,5 +192,43 @@ test('negotiateCompressionFromStore falls back to raw encodings when no transpor
     dictionary: brotli,
     contentEncoding: 'br',
     transport: 'raw'
+  });
+});
+
+test('negotiateCompressionFromStore can restrict negotiation to brotli or zstd', () => {
+  const store = new DictionaryStore();
+  const brotli = new PreparedDictionary({ algorithm: 'brotli', bytes: Buffer.from('brotli-dict') });
+  const zstd = new PreparedDictionary({ algorithm: 'zstd', bytes: Buffer.from('zstd-dict') });
+  store.add(brotli);
+  store.add(zstd);
+
+  const zstdResult = negotiateCompressionFromStore(
+    {
+      acceptEncoding: 'dcb, dcz, br, zstd',
+      availableDictionary: formatAvailableDictionaryHeader([brotli, zstd])
+    },
+    store,
+    { algorithm: 'zstd' }
+  );
+
+  assert.deepEqual(zstdResult, {
+    dictionary: zstd,
+    contentEncoding: 'dcz',
+    transport: 'transport'
+  });
+
+  const brotliResult = negotiateCompressionFromStore(
+    {
+      acceptEncoding: 'dcb, dcz, br, zstd',
+      availableDictionary: formatAvailableDictionaryHeader([brotli, zstd])
+    },
+    store,
+    { algorithm: 'brotli' }
+  );
+
+  assert.deepEqual(brotliResult, {
+    dictionary: brotli,
+    contentEncoding: 'dcb',
+    transport: 'transport'
   });
 });
