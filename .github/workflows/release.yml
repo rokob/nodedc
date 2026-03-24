@@ -38,7 +38,7 @@ jobs:
             label: linux-x64
           - runner: ubuntu-22.04-arm
             label: linux-arm64
-          - runner: macos-latest
+          - runner: macos-13
             label: macos-x64
           - runner: macos-14
             label: macos-arm64
