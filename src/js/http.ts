@@ -44,29 +44,28 @@ function getNegotiatedAlgorithms(options: NegotiationOptions): readonly ('brotli
   return ['zstd', 'brotli'];
 }
 
-function getRawEncoding(algorithm: 'brotli' | 'zstd'): 'br' | 'zstd' {
-  return contentEncodingFor(algorithm, 'raw') as 'br' | 'zstd';
-}
-
 function getTransportEncoding(algorithm: 'brotli' | 'zstd'): 'dcb' | 'dcz' {
   return contentEncodingFor(algorithm, 'transport') as 'dcb' | 'dcz';
 }
 
-export function parseAvailableDictionaryHeader(value: string | null | undefined): string[] {
-  return parseCsvTokens(value).map((item) => {
-    const [dictionaryId] = item.split(';', 1);
-    const trimmed = (dictionaryId ?? '').trim();
-    if (trimmed.startsWith(':') && trimmed.endsWith(':')) {
-      return structuredFieldToHashBytes(trimmed).toString('hex');
-    }
-    return trimmed;
-  });
+export function parseAvailableDictionaryHeader(value: string | null | undefined): string | null {
+  const tokens = parseCsvTokens(value);
+  if (tokens.length !== 1) {
+    return null;
+  }
+
+  const token = tokens[0]!;
+  const trimmed = token.trim();
+  if (trimmed.startsWith(':') && trimmed.endsWith(':')) {
+    return structuredFieldToHashBytes(trimmed).toString('hex');
+  }
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 export function formatAvailableDictionaryHeader(
-  dictionaries: Iterable<Pick<PreparedDictionaryShape, 'hash'>>
+  dictionary: Pick<PreparedDictionaryShape, 'hash'>
 ): string {
-  return Array.from(dictionaries, (dictionary) => hashBytesToStructuredField(dictionary.hash)).join(', ');
+  return hashBytesToStructuredField(dictionary.hash);
 }
 
 export function negotiateCompression<TDictionary extends PreparedDictionaryShape>(
@@ -75,31 +74,18 @@ export function negotiateCompression<TDictionary extends PreparedDictionaryShape
   options: NegotiationOptions = {}
 ): NegotiationResult<TDictionary> | null {
   const acceptedEncodings = parseAcceptEncodingHeader(input.acceptEncoding);
-  const availableDictionaries = new Set(parseAvailableDictionaryHeader(input.availableDictionary));
+  const availableDictionary = parseAvailableDictionaryHeader(input.availableDictionary);
   const candidateList = Array.from(candidates);
 
   for (const algorithm of getNegotiatedAlgorithms(options)) {
     const transportEncoding = getTransportEncoding(algorithm);
     if (acceptedEncodings.has(transportEncoding)) {
       for (const dictionary of candidateList) {
-        if (dictionary.algorithm === algorithm && availableDictionaries.has(dictionary.hash)) {
+        if (dictionary.algorithm === algorithm && dictionary.hash === availableDictionary) {
           return {
             dictionary,
             contentEncoding: transportEncoding,
             transport: 'transport'
-          };
-        }
-      }
-    }
-
-    const rawEncoding = getRawEncoding(algorithm);
-    if (acceptedEncodings.has(rawEncoding)) {
-      for (const dictionary of candidateList) {
-        if (dictionary.algorithm === algorithm) {
-          return {
-            dictionary,
-            contentEncoding: rawEncoding,
-            transport: 'raw'
           };
         }
       }
@@ -115,36 +101,22 @@ export function negotiateCompressionFromStore(
   options: NegotiationOptions = {}
 ): NegotiationResult | null {
   const acceptedEncodings = parseAcceptEncodingHeader(input.acceptEncoding);
-  const availableDictionaries = parseAvailableDictionaryHeader(input.availableDictionary);
+  const availableDictionary = parseAvailableDictionaryHeader(input.availableDictionary);
   const algorithms = getNegotiatedAlgorithms(options);
 
-  for (const algorithm of algorithms) {
-    for (const hash of availableDictionaries) {
-      const transportEncoding = getTransportEncoding(algorithm);
-      if (acceptedEncodings.has(transportEncoding) && isTransportEncoding(transportEncoding)) {
-        const dictionary = store.get(hash, algorithm);
-        if (dictionary) {
-          return {
-            dictionary,
-            contentEncoding: transportEncoding,
-            transport: 'transport'
-          };
-        }
-      }
-    }
+  if (!availableDictionary) {
+    return null;
   }
 
   for (const algorithm of algorithms) {
-    const rawEncoding = getRawEncoding(algorithm);
-    if (!acceptedEncodings.has(rawEncoding) || !isTransportEncoding(rawEncoding)) {
-      continue;
-    }
-    for (const [, dictionary] of store) {
-      if (dictionary.algorithm === algorithm) {
+    const transportEncoding = getTransportEncoding(algorithm);
+    if (acceptedEncodings.has(transportEncoding) && isTransportEncoding(transportEncoding)) {
+      const dictionary = store.get(availableDictionary, algorithm);
+      if (dictionary) {
         return {
           dictionary,
-          contentEncoding: rawEncoding,
-          transport: 'raw'
+          contentEncoding: transportEncoding,
+          transport: 'transport'
         };
       }
     }

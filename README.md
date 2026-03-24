@@ -209,6 +209,10 @@ the stream closes.
 
 ## Compressing responses
 
+`transport: 'raw'` means "compress with the prepared dictionary, but do not add
+the RFC 9842 transport header". That can be useful for private protocols or
+non-HTTP uses. It is not something the HTTP negotiation helpers will select.
+
 One-shot compression:
 
 ```js
@@ -252,16 +256,13 @@ The usual flow is:
 5. Set `Content-Encoding`.
 6. Compress the response with the selected dictionary.
 
-### Advertising available dictionaries
-
-If you want the client to know which dictionaries the server can use, format an
-`Available-Dictionary` header from your active set:
+### Parsing an available dictionary
 
 ```js
-import { formatAvailableDictionaryHeader } from '@rokob/nodedc';
+import { parseAvailableDictionaryHeader } from '@rokob/nodedc';
 
-const header = formatAvailableDictionaryHeader([dictionaryA, dictionaryB]);
-// Set on a response where advertising available dictionaries makes sense.
+const hash = parseAvailableDictionaryHeader(req.headers['available-dictionary']);
+// hash is a single SHA-256 hex string or null.
 ```
 
 ### Negotiating a response
@@ -289,7 +290,7 @@ function selectCompression(req, store) {
 - the client advertises the dictionary hash in `Available-Dictionary`
 - and the client accepts `dcb` or `dcz`
 
-Otherwise it falls back to raw `br` or `zstd` if accepted.
+Otherwise it returns `null`.
 
 Pass `{ algorithm: 'brotli' }` to restrict negotiation to the `dcb` / `br`
 family, `{ algorithm: 'zstd' }` to restrict negotiation to `dcz` / `zstd`, or
@@ -301,6 +302,14 @@ Pass `{ preferredAlgorithm: 'brotli' }` if you want Brotli first instead.
 Unlike the generic iterable helper, the store-based helper does direct hash
 lookups for the transport path, which is the better fit for the normal web
 server hot path.
+
+The HTTP helpers are transport-only. They never return `br` or `zstd` for a
+prepared dictionary, because ordinary HTTP `br` / `zstd` content codings do not
+carry shared-dictionary identity.
+
+`Available-Dictionary` is interpreted as a single dictionary hash, matching RFC
+9842. If the header is missing or contains multiple values, negotiation returns
+`null`.
 
 ### End-to-end server sketch
 
