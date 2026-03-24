@@ -14,7 +14,7 @@ function toBuffers(samples: readonly (Buffer | Uint8Array)[]): Buffer[] {
   if (samples.length === 0) {
     throw new TypeError('At least one sample is required.');
   }
-  return samples.map((sample) => Buffer.isBuffer(sample) ? sample : Buffer.from(sample));
+  return samples.map((sample) => (Buffer.isBuffer(sample) ? sample : Buffer.from(sample)));
 }
 
 function sha256(buffer: Buffer): string {
@@ -23,7 +23,7 @@ function sha256(buffer: Buffer): string {
 
 export function trainZstdDictionary(
   samples: readonly (Buffer | Uint8Array)[],
-  options: TrainZstdDictionaryOptions = {}
+  options: TrainZstdDictionaryOptions = {},
 ): TrainedDictionary {
   const result = loadNativeTrainBinding().trainZstdSync(toBuffers(samples), options);
   return {
@@ -40,7 +40,7 @@ export function hasBrotliTrainer(): boolean {
 
 export function trainBrotliDictionary(
   samples: readonly (Buffer | Uint8Array)[],
-  options: TrainBrotliDictionaryOptions = {}
+  options: TrainBrotliDictionaryOptions = {},
 ): TrainedDictionary {
   const result = loadNativeTrainBinding().trainBrotliSync(toBuffers(samples), options);
   return {

@@ -14,13 +14,11 @@ namespace nodedc {
 Napi::FunctionReference BrotliCompressor::constructor_;
 
 Napi::Function BrotliCompressor::Init(Napi::Env env) {
-  Napi::Function ctor = DefineClass(
-      env,
-      "BrotliCompressor",
-      {
-          InstanceMethod("push", &BrotliCompressor::Push),
-          InstanceMethod("end", &BrotliCompressor::End),
-      });
+  Napi::Function ctor = DefineClass(env, "BrotliCompressor",
+                                    {
+                                        InstanceMethod("push", &BrotliCompressor::Push),
+                                        InstanceMethod("end", &BrotliCompressor::End),
+                                    });
 
   constructor_ = Napi::Persistent(ctor);
   constructor_.SuppressDestruct();
@@ -103,11 +101,8 @@ Napi::Value BrotliCompressor::End(const Napi::CallbackInfo& info) {
   return Process(env, nullptr, 0, true);
 }
 
-Napi::Buffer<std::uint8_t> BrotliCompressor::Process(
-    Napi::Env env,
-    const std::uint8_t* data,
-    std::size_t size,
-    bool finish) {
+Napi::Buffer<std::uint8_t> BrotliCompressor::Process(Napi::Env env, const std::uint8_t* data,
+                                                     std::size_t size, bool finish) {
   size_t available_in = size;
   const uint8_t* next_in = data;
   std::vector<std::uint8_t> output;
@@ -120,20 +115,16 @@ Napi::Buffer<std::uint8_t> BrotliCompressor::Process(
       continue;
     }
 
-    if (finish ? BrotliEncoderIsFinished(state_) : (available_in == 0 && !BrotliEncoderHasMoreOutput(state_))) {
+    if (finish ? BrotliEncoderIsFinished(state_)
+               : (available_in == 0 && !BrotliEncoderHasMoreOutput(state_))) {
       break;
     }
 
     size_t available_out = 0;
     uint8_t* next_out = nullptr;
-    if (!BrotliEncoderCompressStream(
-            state_,
-            finish ? BROTLI_OPERATION_FINISH : BROTLI_OPERATION_PROCESS,
-            &available_in,
-            &next_in,
-            &available_out,
-            &next_out,
-            nullptr)) {
+    if (!BrotliEncoderCompressStream(state_,
+                                     finish ? BROTLI_OPERATION_FINISH : BROTLI_OPERATION_PROCESS,
+                                     &available_in, &next_in, &available_out, &next_out, nullptr)) {
       throw Napi::Error::New(env, "Brotli streaming compression failed.");
     }
 

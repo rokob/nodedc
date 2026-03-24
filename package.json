@@ -33,6 +33,12 @@
     "build:js": "tsc -p tsconfig.json",
     "build:native": "node-gyp rebuild",
     "clean": "rm -rf dist build prebuilds",
+    "format": "npm run format:js && npm run format:cpp",
+    "format:check": "npm run format:js:check && npm run format:cpp:check",
+    "format:js": "prettier --write .",
+    "format:js:check": "prettier --check .",
+    "format:cpp": "find src -type f \\( -name '*.cc' -o -name '*.h' \\) -print0 | xargs -0 clang-format -i",
+    "format:cpp:check": "find src -type f \\( -name '*.cc' -o -name '*.h' \\) -print0 | xargs -0 clang-format --dry-run -Werror",
     "lint": "tsc -p tsconfig.json --noEmit",
     "build:prebuilts": "node ./scripts/build-prebuilts.mjs",
     "bench:zstd-family": "node ./bench/zstd-family.mjs",
@@ -67,6 +73,7 @@
     "@types/node": "^24.6.0",
     "node-gyp": "^11.4.2",
     "prebuildify": "^6.0.1",
+    "prettier": "3.8.1",
     "tsx": "^4.20.5",
     "typescript": "^5.9.3"
   }

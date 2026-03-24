@@ -7,11 +7,11 @@ test('DictionaryStore indexes dictionaries by algorithm and hash', () => {
   const store = new DictionaryStore();
   const brotli = new PreparedDictionary({
     algorithm: 'brotli',
-    bytes: Buffer.from('brotli-dict')
+    bytes: Buffer.from('brotli-dict'),
   });
   const zstd = new PreparedDictionary({
     algorithm: 'zstd',
-    bytes: Buffer.from('zstd-dict')
+    bytes: Buffer.from('zstd-dict'),
   });
 
   store.add(brotli);
@@ -21,4 +21,3 @@ test('DictionaryStore indexes dictionaries by algorithm and hash', () => {
   assert.equal(store.get(zstd.hash, 'zstd'), zstd);
   assert.equal(store.has('missing'), false);
 });
-

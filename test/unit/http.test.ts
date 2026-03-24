@@ -8,7 +8,7 @@ import {
   negotiateCompression,
   negotiateCompressionFromStore,
   parseAcceptEncodingHeader,
-  parseAvailableDictionaryHeader
+  parseAvailableDictionaryHeader,
 } from '../../src/js/index.js';
 
 test('parseAcceptEncodingHeader lowercases and strips parameters', () => {
@@ -21,7 +21,7 @@ test('formatAvailableDictionaryHeader joins hashes', () => {
 
   assert.equal(
     formatAvailableDictionaryHeader(dictionary),
-    `:${Buffer.from(dictionary.hash, 'hex').toString('base64')}:`
+    `:${Buffer.from(dictionary.hash, 'hex').toString('base64')}:`,
   );
 });
 
@@ -30,15 +30,15 @@ test('negotiateCompression prefers transport when the dictionary hash is availab
   const result = negotiateCompression(
     {
       acceptEncoding: 'gzip, dcz',
-      availableDictionary: formatAvailableDictionaryHeader(dictionary)
+      availableDictionary: formatAvailableDictionaryHeader(dictionary),
     },
-    [dictionary]
+    [dictionary],
   );
 
   assert.deepEqual(result, {
     dictionary,
     contentEncoding: 'dcz',
-    transport: 'transport'
+    transport: 'transport',
   });
 });
 
@@ -48,16 +48,16 @@ test('negotiateCompression can restrict negotiation to a single algorithm family
   const result = negotiateCompression(
     {
       acceptEncoding: 'dcb, dcz, br, zstd',
-      availableDictionary: formatAvailableDictionaryHeader(zstd)
+      availableDictionary: formatAvailableDictionaryHeader(zstd),
     },
     [brotli, zstd],
-    { algorithm: 'zstd' }
+    { algorithm: 'zstd' },
   );
 
   assert.deepEqual(result, {
     dictionary: zstd,
     contentEncoding: 'dcz',
-    transport: 'transport'
+    transport: 'transport',
   });
 });
 
@@ -67,15 +67,15 @@ test('negotiateCompression prefers zstd before brotli by default', () => {
   const result = negotiateCompression(
     {
       acceptEncoding: 'dcb, dcz, br, zstd',
-      availableDictionary: formatAvailableDictionaryHeader(zstd)
+      availableDictionary: formatAvailableDictionaryHeader(zstd),
     },
-    [brotli, zstd]
+    [brotli, zstd],
   );
 
   assert.deepEqual(result, {
     dictionary: zstd,
     contentEncoding: 'dcz',
-    transport: 'transport'
+    transport: 'transport',
   });
 });
 
@@ -85,16 +85,16 @@ test('negotiateCompression can prefer brotli before zstd', () => {
   const result = negotiateCompression(
     {
       acceptEncoding: 'dcb, dcz, br, zstd',
-      availableDictionary: formatAvailableDictionaryHeader(brotli)
+      availableDictionary: formatAvailableDictionaryHeader(brotli),
     },
     [zstd, brotli],
-    { preferredAlgorithm: 'brotli' }
+    { preferredAlgorithm: 'brotli' },
   );
 
   assert.deepEqual(result, {
     dictionary: brotli,
     contentEncoding: 'dcb',
-    transport: 'transport'
+    transport: 'transport',
   });
 });
 
@@ -104,9 +104,9 @@ test('negotiateCompression returns null without available dictionary transport s
   const result = negotiateCompression(
     {
       acceptEncoding: 'dcb, dcz, br, zstd',
-      availableDictionary: null
+      availableDictionary: null,
     },
-    [brotli, zstd]
+    [brotli, zstd],
   );
 
   assert.equal(result, null);
@@ -116,7 +116,7 @@ test('parseAvailableDictionaryHeader parses a single structured field hash', () 
   const hash = Buffer.alloc(32, 1).toString('base64');
   assert.deepEqual(
     parseAvailableDictionaryHeader(`:${hash}:`),
-    Buffer.alloc(32, 1).toString('hex')
+    Buffer.alloc(32, 1).toString('hex'),
   );
 });
 
@@ -136,15 +136,15 @@ test('negotiateCompressionFromStore does direct transport lookup by dictionary h
   const result = negotiateCompressionFromStore(
     {
       acceptEncoding: 'gzip, dcz, dcb',
-      availableDictionary: formatAvailableDictionaryHeader(zstd)
+      availableDictionary: formatAvailableDictionaryHeader(zstd),
     },
-    store
+    store,
   );
 
   assert.deepEqual(result, {
     dictionary: zstd,
     contentEncoding: 'dcz',
-    transport: 'transport'
+    transport: 'transport',
   });
 });
 
@@ -158,15 +158,15 @@ test('negotiateCompressionFromStore prefers zstd before brotli by default', () =
   const result = negotiateCompressionFromStore(
     {
       acceptEncoding: 'dcb, dcz, br, zstd',
-      availableDictionary: formatAvailableDictionaryHeader(zstd)
+      availableDictionary: formatAvailableDictionaryHeader(zstd),
     },
-    store
+    store,
   );
 
   assert.deepEqual(result, {
     dictionary: zstd,
     contentEncoding: 'dcz',
-    transport: 'transport'
+    transport: 'transport',
   });
 });
 
@@ -180,16 +180,16 @@ test('negotiateCompressionFromStore can prefer brotli before zstd', () => {
   const result = negotiateCompressionFromStore(
     {
       acceptEncoding: 'dcb, dcz, br, zstd',
-      availableDictionary: formatAvailableDictionaryHeader(brotli)
+      availableDictionary: formatAvailableDictionaryHeader(brotli),
     },
     store,
-    { preferredAlgorithm: 'brotli' }
+    { preferredAlgorithm: 'brotli' },
   );
 
   assert.deepEqual(result, {
     dictionary: brotli,
     contentEncoding: 'dcb',
-    transport: 'transport'
+    transport: 'transport',
   });
 });
 
@@ -201,9 +201,9 @@ test('negotiateCompressionFromStore returns null when no transport dictionary ma
   const result = negotiateCompressionFromStore(
     {
       acceptEncoding: 'gzip, br',
-      availableDictionary: null
+      availableDictionary: null,
     },
-    store
+    store,
   );
 
   assert.equal(result, null);
@@ -219,9 +219,9 @@ test('negotiateCompressionFromStore returns null for gzip, deflate, br, zstd wit
   const result = negotiateCompressionFromStore(
     {
       acceptEncoding: 'gzip, deflate, br, zstd',
-      availableDictionary: null
+      availableDictionary: null,
     },
-    store
+    store,
   );
 
   assert.equal(result, null);
@@ -229,9 +229,18 @@ test('negotiateCompressionFromStore returns null for gzip, deflate, br, zstd wit
 
 test('negotiateCompressionFromStore picks the matching brotli dictionary from multiple store candidates', () => {
   const store = new DictionaryStore();
-  const brotliA = new PreparedDictionary({ algorithm: 'brotli', bytes: Buffer.from('brotli-dict-a') });
-  const brotliB = new PreparedDictionary({ algorithm: 'brotli', bytes: Buffer.from('brotli-dict-b') });
-  const brotliC = new PreparedDictionary({ algorithm: 'brotli', bytes: Buffer.from('brotli-dict-c') });
+  const brotliA = new PreparedDictionary({
+    algorithm: 'brotli',
+    bytes: Buffer.from('brotli-dict-a'),
+  });
+  const brotliB = new PreparedDictionary({
+    algorithm: 'brotli',
+    bytes: Buffer.from('brotli-dict-b'),
+  });
+  const brotliC = new PreparedDictionary({
+    algorithm: 'brotli',
+    bytes: Buffer.from('brotli-dict-c'),
+  });
   store.add(brotliA);
   store.add(brotliB);
   store.add(brotliC);
@@ -239,16 +248,16 @@ test('negotiateCompressionFromStore picks the matching brotli dictionary from mu
   const result = negotiateCompressionFromStore(
     {
       acceptEncoding: 'gzip, dcb',
-      availableDictionary: formatAvailableDictionaryHeader(brotliC)
+      availableDictionary: formatAvailableDictionaryHeader(brotliC),
     },
     store,
-    { algorithm: 'brotli' }
+    { algorithm: 'brotli' },
   );
 
   assert.deepEqual(result, {
     dictionary: brotliC,
     contentEncoding: 'dcb',
-    transport: 'transport'
+    transport: 'transport',
   });
 });
 
@@ -262,30 +271,30 @@ test('negotiateCompressionFromStore can restrict negotiation to brotli or zstd',
   const zstdResult = negotiateCompressionFromStore(
     {
       acceptEncoding: 'dcb, dcz, br, zstd',
-      availableDictionary: formatAvailableDictionaryHeader(zstd)
+      availableDictionary: formatAvailableDictionaryHeader(zstd),
     },
     store,
-    { algorithm: 'zstd' }
+    { algorithm: 'zstd' },
   );
 
   assert.deepEqual(zstdResult, {
     dictionary: zstd,
     contentEncoding: 'dcz',
-    transport: 'transport'
+    transport: 'transport',
   });
 
   const brotliResult = negotiateCompressionFromStore(
     {
       acceptEncoding: 'dcb, dcz, br, zstd',
-      availableDictionary: formatAvailableDictionaryHeader(brotli)
+      availableDictionary: formatAvailableDictionaryHeader(brotli),
     },
     store,
-    { algorithm: 'brotli' }
+    { algorithm: 'brotli' },
   );
 
   assert.deepEqual(brotliResult, {
     dictionary: brotli,
     contentEncoding: 'dcb',
-    transport: 'transport'
+    transport: 'transport',
   });
 });

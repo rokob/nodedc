@@ -15,7 +15,7 @@ test('PreparedDictionary.fromFileSync loads plain dictionary files', () => {
     writeFileSync(filePath, dictionaryBytes);
 
     const dictionary = PreparedDictionary.fromFileSync(filePath, {
-      algorithm: 'brotli'
+      algorithm: 'brotli',
     });
 
     assert.equal(dictionary.algorithm, 'brotli');
@@ -34,7 +34,7 @@ test('PreparedDictionary.fromFile loads brotli-compressed dictionary files', asy
 
     const dictionary = await PreparedDictionary.fromFile(filePath, {
       algorithm: 'zstd',
-      compression: 'brotli'
+      compression: 'brotli',
     });
 
     assert.equal(dictionary.algorithm, 'zstd');

@@ -52,14 +52,14 @@ export function getTransportInfo(algorithm: Algorithm, hash: string): TransportI
     algorithm,
     hash,
     contentEncoding: algorithm === 'brotli' ? 'dcb' : 'dcz',
-    headerBytes
+    headerBytes,
   };
 }
 
 export function prependTransportFrame(
   algorithm: Algorithm,
   hash: string,
-  payload: Buffer | Uint8Array
+  payload: Buffer | Uint8Array,
 ): Buffer {
   const { headerBytes } = getTransportInfo(algorithm, hash);
   const normalizedPayload = Buffer.isBuffer(payload) ? payload : Buffer.from(payload);
@@ -69,7 +69,7 @@ export function prependTransportFrame(
 export function stripTransportFrame(
   algorithm: Algorithm,
   hash: string,
-  payload: Buffer | Uint8Array
+  payload: Buffer | Uint8Array,
 ): Buffer {
   const normalizedPayload = Buffer.isBuffer(payload) ? payload : Buffer.from(payload);
   const { headerBytes, contentEncoding } = getTransportInfo(algorithm, hash);

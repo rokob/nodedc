@@ -39,16 +39,15 @@ using UniqueDCtx = std::unique_ptr<ZSTD_DCtx, DCtxDeleter>;
 }  // namespace
 
 Napi::Function PreparedDictionary::Init(Napi::Env env) {
-  Napi::Function ctor = DefineClass(
-      env,
-      "ZstdPreparedDictionary",
-      {
-          StaticMethod("className", &PreparedDictionary::GetClassName),
-          InstanceAccessor("algorithm", &PreparedDictionary::GetAlgorithm, nullptr),
-          InstanceAccessor("size", &PreparedDictionary::GetSize, nullptr),
-          InstanceMethod("compressSync", &PreparedDictionary::CompressSync),
-          InstanceMethod("decompressSync", &PreparedDictionary::DecompressSync),
-      });
+  Napi::Function ctor =
+      DefineClass(env, "ZstdPreparedDictionary",
+                  {
+                      StaticMethod("className", &PreparedDictionary::GetClassName),
+                      InstanceAccessor("algorithm", &PreparedDictionary::GetAlgorithm, nullptr),
+                      InstanceAccessor("size", &PreparedDictionary::GetSize, nullptr),
+                      InstanceMethod("compressSync", &PreparedDictionary::CompressSync),
+                      InstanceMethod("decompressSync", &PreparedDictionary::DecompressSync),
+                  });
 
   constructor_ = Napi::Persistent(ctor);
   constructor_.SuppressDestruct();
@@ -56,8 +55,7 @@ Napi::Function PreparedDictionary::Init(Napi::Env env) {
 }
 
 PreparedDictionary::PreparedDictionary(const Napi::CallbackInfo& info)
-    : Napi::ObjectWrap<PreparedDictionary>(info),
-      ddict_(nullptr) {
+    : Napi::ObjectWrap<PreparedDictionary>(info), ddict_(nullptr) {
   Napi::Env env = info.Env();
 
   if (info.Length() != 1 || !info[0].IsBuffer()) {
@@ -145,7 +143,8 @@ bool PreparedDictionary::GetChecksumFlag(const Napi::Object& options) {
   return checksum.As<Napi::Boolean>().Value();
 }
 
-std::vector<std::uint8_t> PreparedDictionary::AsByteVector(const Napi::Value& value, const char* name) {
+std::vector<std::uint8_t> PreparedDictionary::AsByteVector(const Napi::Value& value,
+                                                           const char* name) {
   if (!value.IsBuffer()) {
     throw std::invalid_argument(std::string(name) + " must be a Buffer.");
   }
@@ -188,15 +187,12 @@ Napi::Value PreparedDictionary::CompressSync(const Napi::CallbackInfo& info) {
     throw Napi::Error::New(env, "Failed to create the Zstd compression context.");
   }
 
-  ThrowZstdError(env, ZSTD_CCtx_refCDict(cctx.get(), cdict), "Failed to attach the Zstd dictionary");
-  ThrowZstdError(
-      env,
-      ZSTD_CCtx_setParameter(cctx.get(), ZSTD_c_contentSizeFlag, 1),
-      "Failed to set the Zstd content size flag");
-  ThrowZstdError(
-      env,
-      ZSTD_CCtx_setParameter(cctx.get(), ZSTD_c_checksumFlag, checksum ? 1 : 0),
-      "Failed to set the Zstd checksum flag");
+  ThrowZstdError(env, ZSTD_CCtx_refCDict(cctx.get(), cdict),
+                 "Failed to attach the Zstd dictionary");
+  ThrowZstdError(env, ZSTD_CCtx_setParameter(cctx.get(), ZSTD_c_contentSizeFlag, 1),
+                 "Failed to set the Zstd content size flag");
+  ThrowZstdError(env, ZSTD_CCtx_setParameter(cctx.get(), ZSTD_c_checksumFlag, checksum ? 1 : 0),
+                 "Failed to set the Zstd checksum flag");
 
   std::vector<std::uint8_t> output(ZSTD_compressBound(input.size()));
   const size_t written =
@@ -219,7 +215,8 @@ Napi::Value PreparedDictionary::DecompressSync(const Napi::CallbackInfo& info) {
     throw Napi::Error::New(env, "Failed to create the Zstd decompression context.");
   }
 
-  ThrowZstdError(env, ZSTD_DCtx_refDDict(dctx.get(), ddict_), "Failed to attach the Zstd dictionary");
+  ThrowZstdError(env, ZSTD_DCtx_refDDict(dctx.get(), ddict_),
+                 "Failed to attach the Zstd dictionary");
 
   ZSTD_inBuffer in = {input.data(), input.size(), 0};
   std::vector<std::uint8_t> output;

@@ -157,15 +157,12 @@ Napi::Value TrainZstdSync(const Napi::CallbackInfo& info) {
   params.zParams.dictID = options.has_dict_id ? options.dict_id : 0;
 
   const size_t result = ZDICT_optimizeTrainFromBuffer_fastCover(
-      dictionary.data(),
-      dictionary.size(),
-      sample_data.data(),
-      sample_sizes.data(),
-      sample_count,
+      dictionary.data(), dictionary.size(), sample_data.data(), sample_sizes.data(), sample_count,
       &params);
 
   if (ZDICT_isError(result)) {
-    throw Napi::Error::New(env, std::string("Zstd dictionary training failed: ") + ZDICT_getErrorName(result));
+    throw Napi::Error::New(
+        env, std::string("Zstd dictionary training failed: ") + ZDICT_getErrorName(result));
   }
 
   const unsigned dict_id = ZDICT_getDictID(dictionary.data(), result);

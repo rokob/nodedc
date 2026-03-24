@@ -53,13 +53,11 @@ Napi::Object RequireOptionsObject(const Napi::Env& env, const Napi::Value& value
 }  // namespace
 
 Napi::Function ZstdCompressor::Init(Napi::Env env) {
-  Napi::Function ctor = DefineClass(
-      env,
-      "ZstdCompressor",
-      {
-          InstanceMethod("push", &ZstdCompressor::Push),
-          InstanceMethod("end", &ZstdCompressor::End),
-      });
+  Napi::Function ctor = DefineClass(env, "ZstdCompressor",
+                                    {
+                                        InstanceMethod("push", &ZstdCompressor::Push),
+                                        InstanceMethod("end", &ZstdCompressor::End),
+                                    });
 
   constructor_ = Napi::Persistent(ctor);
   constructor_.SuppressDestruct();
@@ -67,10 +65,7 @@ Napi::Function ZstdCompressor::Init(Napi::Env env) {
 }
 
 ZstdCompressor::ZstdCompressor(const Napi::CallbackInfo& info)
-    : Napi::ObjectWrap<ZstdCompressor>(info),
-      dictionary_(nullptr),
-      cctx_(nullptr),
-      ended_(false) {
+    : Napi::ObjectWrap<ZstdCompressor>(info), dictionary_(nullptr), cctx_(nullptr), ended_(false) {
   Napi::Env env = info.Env();
 
   if (info.Length() < 1 || !info[0].IsObject()) {
@@ -97,17 +92,12 @@ ZstdCompressor::ZstdCompressor(const Napi::CallbackInfo& info)
   const bool checksum = PreparedDictionary::GetChecksumFlag(options);
   const ZSTD_CDict* cdict = dictionary_->GetOrCreateCDict(compression_level);
 
+  PreparedDictionary::ThrowZstdError(env, ZSTD_CCtx_refCDict(cctx_, cdict),
+                                     "Failed to attach the Zstd dictionary");
+  PreparedDictionary::ThrowZstdError(env, ZSTD_CCtx_setParameter(cctx_, ZSTD_c_contentSizeFlag, 0),
+                                     "Failed to disable the Zstd content size flag for streaming");
   PreparedDictionary::ThrowZstdError(
-      env,
-      ZSTD_CCtx_refCDict(cctx_, cdict),
-      "Failed to attach the Zstd dictionary");
-  PreparedDictionary::ThrowZstdError(
-      env,
-      ZSTD_CCtx_setParameter(cctx_, ZSTD_c_contentSizeFlag, 0),
-      "Failed to disable the Zstd content size flag for streaming");
-  PreparedDictionary::ThrowZstdError(
-      env,
-      ZSTD_CCtx_setParameter(cctx_, ZSTD_c_checksumFlag, checksum ? 1 : 0),
+      env, ZSTD_CCtx_setParameter(cctx_, ZSTD_c_checksumFlag, checksum ? 1 : 0),
       "Failed to set the Zstd checksum flag");
 }
 
@@ -146,11 +136,8 @@ Napi::Value ZstdCompressor::End(const Napi::CallbackInfo& info) {
   return Process(env, nullptr, 0, true);
 }
 
-Napi::Buffer<std::uint8_t> ZstdCompressor::Process(
-    Napi::Env env,
-    const std::uint8_t* data,
-    std::size_t size,
-    bool end_frame) {
+Napi::Buffer<std::uint8_t> ZstdCompressor::Process(Napi::Env env, const std::uint8_t* data,
+                                                   std::size_t size, bool end_frame) {
   ZSTD_inBuffer in = {data, size, 0};
   std::vector<std::uint8_t> output;
 
@@ -160,11 +147,8 @@ Napi::Buffer<std::uint8_t> ZstdCompressor::Process(
     output.resize(previous_size + kOutputChunkSize);
 
     ZSTD_outBuffer out = {output.data() + previous_size, kOutputChunkSize, 0};
-    const size_t remaining = ZSTD_compressStream2(
-        cctx_,
-        &out,
-        &in,
-        end_frame ? ZSTD_e_end : ZSTD_e_continue);
+    const size_t remaining =
+        ZSTD_compressStream2(cctx_, &out, &in, end_frame ? ZSTD_e_end : ZSTD_e_continue);
     PreparedDictionary::ThrowZstdError(env, remaining, "Zstd streaming compression failed");
 
     output.resize(previous_size + out.pos);
@@ -186,13 +170,11 @@ Napi::Buffer<std::uint8_t> ZstdCompressor::Process(
 }
 
 Napi::Function ZstdDecompressor::Init(Napi::Env env) {
-  Napi::Function ctor = DefineClass(
-      env,
-      "ZstdDecompressor",
-      {
-          InstanceMethod("push", &ZstdDecompressor::Push),
-          InstanceMethod("end", &ZstdDecompressor::End),
-      });
+  Napi::Function ctor = DefineClass(env, "ZstdDecompressor",
+                                    {
+                                        InstanceMethod("push", &ZstdDecompressor::Push),
+                                        InstanceMethod("end", &ZstdDecompressor::End),
+                                    });
 
   constructor_ = Napi::Persistent(ctor);
   constructor_.SuppressDestruct();
@@ -224,10 +206,8 @@ ZstdDecompressor::ZstdDecompressor(const Napi::CallbackInfo& info)
     throw Napi::Error::New(env, "Failed to create the Zstd decompression context.");
   }
 
-  PreparedDictionary::ThrowZstdError(
-      env,
-      ZSTD_DCtx_refDDict(dctx_, dictionary_->ddict()),
-      "Failed to attach the Zstd dictionary");
+  PreparedDictionary::ThrowZstdError(env, ZSTD_DCtx_refDDict(dctx_, dictionary_->ddict()),
+                                     "Failed to attach the Zstd dictionary");
 }
 
 ZstdDecompressor::~ZstdDecompressor() {
@@ -268,10 +248,8 @@ Napi::Value ZstdDecompressor::End(const Napi::CallbackInfo& info) {
   return env.Undefined();
 }
 
-Napi::Buffer<std::uint8_t> ZstdDecompressor::Process(
-    Napi::Env env,
-    const std::uint8_t* data,
-    std::size_t size) {
+Napi::Buffer<std::uint8_t> ZstdDecompressor::Process(Napi::Env env, const std::uint8_t* data,
+                                                     std::size_t size) {
   ZSTD_inBuffer in = {data, size, 0};
   std::vector<std::uint8_t> output;
 
@@ -295,4 +273,3 @@ Napi::Buffer<std::uint8_t> ZstdDecompressor::Process(
 }
 
 }  // namespace nodedc
-

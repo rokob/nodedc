@@ -10,7 +10,7 @@ import type {
   NativeBrotliPreparedDictionary,
   NativeZstdCompressor,
   NativeZstdDecompressor,
-  NativeZstdPreparedDictionary
+  NativeZstdPreparedDictionary,
 } from './native.js';
 
 class NativeCompressorTransform extends Transform {
@@ -18,7 +18,7 @@ class NativeCompressorTransform extends Transform {
 
   constructor(
     private readonly nativeStream: NativeBrotliCompressor | NativeZstdCompressor,
-    private readonly header?: Buffer
+    private readonly header?: Buffer,
   ) {
     super();
   }
@@ -26,7 +26,7 @@ class NativeCompressorTransform extends Transform {
   override _transform(
     chunk: Buffer,
     _encoding: BufferEncoding,
-    callback: (error?: Error | null, data?: Buffer) => void
+    callback: (error?: Error | null, data?: Buffer) => void,
   ): void {
     try {
       const output = this.nativeStream.push(chunk);
@@ -65,7 +65,7 @@ class NativeDecompressorTransform extends Transform {
   constructor(
     private readonly nativeStream: NativeZstdDecompressor,
     private readonly header?: Buffer,
-    private readonly contentEncoding?: 'dcb' | 'dcz'
+    private readonly contentEncoding?: 'dcb' | 'dcz',
   ) {
     super();
   }
@@ -73,7 +73,7 @@ class NativeDecompressorTransform extends Transform {
   override _transform(
     chunk: Buffer,
     _encoding: BufferEncoding,
-    callback: (error?: Error | null, data?: Buffer) => void
+    callback: (error?: Error | null, data?: Buffer) => void,
   ): void {
     try {
       let payload = chunk;
@@ -105,7 +105,9 @@ class NativeDecompressorTransform extends Transform {
   override _flush(callback: (error?: Error | null) => void): void {
     try {
       if (this.header && !this.#validated) {
-        callback(new Error(`Incomplete ${this.contentEncoding} payload: missing transport header bytes.`));
+        callback(
+          new Error(`Incomplete ${this.contentEncoding} payload: missing transport header bytes.`),
+        );
         return;
       }
 
@@ -121,42 +123,48 @@ export function createCompressStream(
   nativeDictionary: NativeBrotliPreparedDictionary | NativeZstdPreparedDictionary,
   hash: string,
   algorithm: 'brotli' | 'zstd',
-  options: CompressOptions = {}
+  options: CompressOptions = {},
 ): Transform {
   const binding = loadNativeBinding();
-  const header = options.transport === 'transport' ? getTransportInfo(algorithm, hash).headerBytes : undefined;
+  const header =
+    options.transport === 'transport' ? getTransportInfo(algorithm, hash).headerBytes : undefined;
   if (algorithm === 'zstd') {
     return new NativeCompressorTransform(
       new binding.ZstdCompressor(nativeDictionary as NativeZstdPreparedDictionary, options),
-      header
+      header,
     );
   }
 
   if (algorithm === 'brotli') {
     return new NativeCompressorTransform(
       new binding.BrotliCompressor(nativeDictionary as NativeBrotliPreparedDictionary, options),
-      header
+      header,
     );
   }
 
-  throw new NotImplementedPhaseError(`Streaming compression for ${algorithm} is not implemented yet.`);
+  throw new NotImplementedPhaseError(
+    `Streaming compression for ${algorithm} is not implemented yet.`,
+  );
 }
 
 export function createDecompressStream(
   nativeDictionary: NativeZstdPreparedDictionary,
   hash: string,
   algorithm: 'brotli' | 'zstd',
-  options: DecompressOptions = {}
+  options: DecompressOptions = {},
 ): Transform {
   if (algorithm !== 'zstd') {
-    throw new NotImplementedPhaseError(`Streaming decompression for ${algorithm} is not implemented yet.`);
+    throw new NotImplementedPhaseError(
+      `Streaming decompression for ${algorithm} is not implemented yet.`,
+    );
   }
 
   const binding = loadNativeBinding();
-  const transport = options.transport === 'transport' ? getTransportInfo(algorithm, hash) : undefined;
+  const transport =
+    options.transport === 'transport' ? getTransportInfo(algorithm, hash) : undefined;
   return new NativeDecompressorTransform(
     new binding.ZstdDecompressor(nativeDictionary),
     transport?.headerBytes,
-    transport?.contentEncoding
+    transport?.contentEncoding,
   );
 }

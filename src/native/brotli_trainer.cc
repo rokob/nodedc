@@ -96,13 +96,9 @@ BrotliTrainOptions ParseOptions(const Napi::Env env, const Napi::Value& value) {
   return options;
 }
 
-void AppendSample(
-    Napi::Env env,
-    const Napi::Value& value,
-    std::size_t chunk_len,
-    std::size_t overlap_len,
-    std::vector<std::size_t>* sample_sizes,
-    std::vector<std::uint8_t>* sample_data) {
+void AppendSample(Napi::Env env, const Napi::Value& value, std::size_t chunk_len,
+                  std::size_t overlap_len, std::vector<std::size_t>* sample_sizes,
+                  std::vector<std::uint8_t>* sample_data) {
   if (!value.IsBuffer()) {
     throw Napi::TypeError::New(env, "trainBrotliSync samples must be Buffers.");
   }
@@ -133,7 +129,8 @@ Napi::Value TrainBrotliSync(const Napi::CallbackInfo& info) {
     throw Napi::TypeError::New(env, "trainBrotliSync expects an array of Buffers.");
   }
 
-  const BrotliTrainOptions options = ParseOptions(env, info.Length() > 1 ? info[1] : env.Undefined());
+  const BrotliTrainOptions options =
+      ParseOptions(env, info.Length() > 1 ? info[1] : env.Undefined());
   Napi::Array array = info[0].As<Napi::Array>();
   const uint32_t sample_count = array.Length();
   if (sample_count == 0) {
@@ -143,7 +140,8 @@ Napi::Value TrainBrotliSync(const Napi::CallbackInfo& info) {
   std::vector<std::size_t> sample_sizes;
   std::vector<std::uint8_t> sample_data;
   for (uint32_t i = 0; i < sample_count; ++i) {
-    AppendSample(env, array.Get(i), options.chunk_len, options.overlap_len, &sample_sizes, &sample_data);
+    AppendSample(env, array.Get(i), options.chunk_len, options.overlap_len, &sample_sizes,
+                 &sample_data);
   }
 
   std::string dictionary;
@@ -152,15 +150,12 @@ Napi::Value TrainBrotliSync(const Napi::CallbackInfo& info) {
       dictionary = DM_generate(options.target_dict_len, sample_sizes, sample_data.data());
       break;
     case BrotliTrainerEngine::kSieve:
-      dictionary = sieve_generate(options.target_dict_len, options.slice_len, sample_sizes, sample_data.data());
+      dictionary = sieve_generate(options.target_dict_len, options.slice_len, sample_sizes,
+                                  sample_data.data());
       break;
     case BrotliTrainerEngine::kDsh:
-      dictionary = durchschlag_generate(
-          options.target_dict_len,
-          options.slice_len,
-          options.block_len,
-          sample_sizes,
-          sample_data.data());
+      dictionary = durchschlag_generate(options.target_dict_len, options.slice_len,
+                                        options.block_len, sample_sizes, sample_data.data());
       break;
   }
 
@@ -169,12 +164,9 @@ Napi::Value TrainBrotliSync(const Napi::CallbackInfo& info) {
   }
 
   Napi::Object output = Napi::Object::New(env);
-  output.Set(
-      "dictionary",
-      Napi::Buffer<std::uint8_t>::Copy(
-          env,
-          reinterpret_cast<const std::uint8_t*>(dictionary.data()),
-          dictionary.size()));
+  output.Set("dictionary",
+             Napi::Buffer<std::uint8_t>::Copy(
+                 env, reinterpret_cast<const std::uint8_t*>(dictionary.data()), dictionary.size()));
   output.Set("size", Napi::Number::New(env, static_cast<double>(dictionary.size())));
   return output;
 }

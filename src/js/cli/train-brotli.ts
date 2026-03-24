@@ -47,7 +47,9 @@ function main(argv: readonly string[]): void {
     fail('At least one sample file or directory is required.');
   }
   if (!hasBrotliTrainer()) {
-    fail('Brotli training is not available in this build. Vendor vendor/divsufsort and vendor/esaxx and rebuild/prebuild the training addon.');
+    fail(
+      'Brotli training is not available in this build. Vendor vendor/divsufsort and vendor/esaxx and rebuild/prebuild the training addon.',
+    );
   }
 
   metadata ??= `${output}.json`;

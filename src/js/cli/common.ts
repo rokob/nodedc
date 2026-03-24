@@ -58,7 +58,12 @@ export function sampleBuffers(samples: readonly SampleFile[]): Buffer[] {
   return samples.map((sample) => readFileSync(sample.path));
 }
 
-export function writeOutput(outputPath: string, dictionary: Buffer, metadataPath: string, metadata: object): void {
+export function writeOutput(
+  outputPath: string,
+  dictionary: Buffer,
+  metadataPath: string,
+  metadata: object,
+): void {
   ensureParentDir(outputPath);
   ensureParentDir(metadataPath);
   writeFileSync(outputPath, dictionary);

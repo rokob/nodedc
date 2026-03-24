@@ -11,7 +11,7 @@ import {
   contentEncodingFor,
   getTransportInfo,
   prependTransportFrame,
-  stripTransportFrame
+  stripTransportFrame,
 } from './transport.js';
 
 import type {
@@ -20,7 +20,7 @@ import type {
   FileCompression,
   PreparedDictionaryFromFileOptions,
   PreparedDictionaryInit,
-  PreparedDictionaryShape
+  PreparedDictionaryShape,
 } from './types.js';
 import type { NativeBrotliPreparedDictionary, NativeZstdPreparedDictionary } from './native.js';
 
@@ -32,16 +32,20 @@ class UnimplementedDictionaryStream extends Transform {
   override _transform(
     _chunk: Buffer,
     _encoding: BufferEncoding,
-    callback: (error?: Error | null, data?: Buffer) => void
+    callback: (error?: Error | null, data?: Buffer) => void,
   ): void {
     callback(
-      new NotImplementedPhaseError(`Streaming ${this.action} is not implemented in the scaffold phase.`)
+      new NotImplementedPhaseError(
+        `Streaming ${this.action} is not implemented in the scaffold phase.`,
+      ),
     );
   }
 }
 
 function normalizeBytes(bytes: Buffer | Uint8Array): Buffer {
-  return Buffer.isBuffer(bytes) ? Buffer.from(bytes) : Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return Buffer.isBuffer(bytes)
+    ? Buffer.from(bytes)
+    : Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }
 
 function sha256Hex(bytes: Buffer): string {
@@ -84,23 +88,23 @@ export class PreparedDictionary implements PreparedDictionaryShape {
 
   static async fromFile(
     filePath: string | URL,
-    options: PreparedDictionaryFromFileOptions
+    options: PreparedDictionaryFromFileOptions,
   ): Promise<PreparedDictionary> {
     const bytes = await readFile(filePath);
     return new PreparedDictionary({
       ...options,
-      bytes: decompressFileBytes(bytes, options.compression ?? 'none')
+      bytes: decompressFileBytes(bytes, options.compression ?? 'none'),
     });
   }
 
   static fromFileSync(
     filePath: string | URL,
-    options: PreparedDictionaryFromFileOptions
+    options: PreparedDictionaryFromFileOptions,
   ): PreparedDictionary {
     const bytes = readFileSync(filePath);
     return new PreparedDictionary({
       ...options,
-      bytes: decompressFileBytes(bytes, options.compression ?? 'none')
+      bytes: decompressFileBytes(bytes, options.compression ?? 'none'),
     });
   }
 
@@ -162,7 +166,7 @@ export class PreparedDictionary implements PreparedDictionaryShape {
     }
 
     throw new NotImplementedPhaseError(
-      `Prepared ${this.algorithm} dictionary compression is not implemented yet.`
+      `Prepared ${this.algorithm} dictionary compression is not implemented yet.`,
     );
   }
 
@@ -181,7 +185,7 @@ export class PreparedDictionary implements PreparedDictionaryShape {
     }
 
     throw new NotImplementedPhaseError(
-      `Prepared ${this.algorithm} dictionary decompression is not implemented yet.`
+      `Prepared ${this.algorithm} dictionary decompression is not implemented yet.`,
     );
   }
 
@@ -195,7 +199,9 @@ export class PreparedDictionary implements PreparedDictionaryShape {
 
   #getNativeZstd(): NativeZstdPreparedDictionary {
     if (this.algorithm !== 'zstd') {
-      throw new NotImplementedPhaseError(`Native ${this.algorithm} support is not implemented yet.`);
+      throw new NotImplementedPhaseError(
+        `Native ${this.algorithm} support is not implemented yet.`,
+      );
     }
 
     if (!this.#nativeZstd) {
@@ -208,7 +214,9 @@ export class PreparedDictionary implements PreparedDictionaryShape {
 
   #getNativeBrotli(): NativeBrotliPreparedDictionary {
     if (this.algorithm !== 'brotli') {
-      throw new NotImplementedPhaseError(`Native ${this.algorithm} support is not implemented yet.`);
+      throw new NotImplementedPhaseError(
+        `Native ${this.algorithm} support is not implemented yet.`,
+      );
     }
 
     if (!this.#nativeBrotli) {

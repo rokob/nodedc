@@ -5,9 +5,7 @@
       "release-type": "node",
       "include-v-in-tag": true,
       "changelog-path": "CHANGELOG.md",
-      "extra-files": [
-        "package-lock.json"
-      ]
+      "extra-files": ["package-lock.json"]
     }
   }
 }

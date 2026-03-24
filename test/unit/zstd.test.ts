@@ -6,7 +6,7 @@ import { PreparedDictionary } from '../../src/js/index.js';
 test('PreparedDictionary zstd compresses and decompresses with a reused dictionary', async () => {
   const dictionary = new PreparedDictionary({
     algorithm: 'zstd',
-    bytes: Buffer.from('sample dictionary data for zstd reuse')
+    bytes: Buffer.from('sample dictionary data for zstd reuse'),
   });
 
   const input = Buffer.from('sample dictionary data for zstd reuse :: payload payload payload');
@@ -20,7 +20,7 @@ test('PreparedDictionary zstd compresses and decompresses with a reused dictiona
 test('PreparedDictionary zstd can reuse one prepared dictionary across compression calls', async () => {
   const dictionary = new PreparedDictionary({
     algorithm: 'zstd',
-    bytes: Buffer.from('another zstd dictionary for repeated compression')
+    bytes: Buffer.from('another zstd dictionary for repeated compression'),
   });
 
   const first = Buffer.from('another zstd dictionary for repeated compression :: first');

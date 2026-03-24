@@ -28,8 +28,7 @@ std::string DecoderErrorMessage(BrotliDecoderState* state, const char* context) 
 
 Napi::Function BrotliPreparedDictionary::Init(Napi::Env env) {
   Napi::Function ctor = DefineClass(
-      env,
-      "BrotliPreparedDictionary",
+      env, "BrotliPreparedDictionary",
       {
           InstanceAccessor("algorithm", &BrotliPreparedDictionary::GetAlgorithm, nullptr),
           InstanceAccessor("size", &BrotliPreparedDictionary::GetSize, nullptr),
@@ -43,8 +42,7 @@ Napi::Function BrotliPreparedDictionary::Init(Napi::Env env) {
 }
 
 BrotliPreparedDictionary::BrotliPreparedDictionary(const Napi::CallbackInfo& info)
-    : Napi::ObjectWrap<BrotliPreparedDictionary>(info),
-      prepared_(nullptr) {
+    : Napi::ObjectWrap<BrotliPreparedDictionary>(info), prepared_(nullptr) {
   Napi::Env env = info.Env();
 
   if (info.Length() != 1 || !info[0].IsBuffer()) {
@@ -56,14 +54,9 @@ BrotliPreparedDictionary::BrotliPreparedDictionary(const Napi::CallbackInfo& inf
     throw Napi::TypeError::New(env, "BrotliPreparedDictionary requires a non-empty dictionary.");
   }
 
-  prepared_ = BrotliEncoderPrepareDictionary(
-      BROTLI_SHARED_DICTIONARY_RAW,
-      bytes_.size(),
-      bytes_.data(),
-      BROTLI_MAX_QUALITY,
-      nullptr,
-      nullptr,
-      nullptr);
+  prepared_ =
+      BrotliEncoderPrepareDictionary(BROTLI_SHARED_DICTIONARY_RAW, bytes_.size(), bytes_.data(),
+                                     BROTLI_MAX_QUALITY, nullptr, nullptr, nullptr);
 
   if (prepared_ == nullptr) {
     throw Napi::Error::New(env, "Failed to prepare the Brotli dictionary.");
@@ -85,9 +78,8 @@ Napi::Value BrotliPreparedDictionary::GetSize(const Napi::CallbackInfo& info) {
   return Napi::Number::New(info.Env(), static_cast<double>(bytes_.size()));
 }
 
-std::vector<std::uint8_t> BrotliPreparedDictionary::AsByteVector(
-    const Napi::Value& value,
-    const char* name) {
+std::vector<std::uint8_t> BrotliPreparedDictionary::AsByteVector(const Napi::Value& value,
+                                                                 const char* name) {
   if (!value.IsBuffer()) {
     throw std::invalid_argument(std::string(name) + " must be a Buffer.");
   }
@@ -118,11 +110,10 @@ int BrotliPreparedDictionary::GetWindowBits(const Napi::Object& options) {
   return window.As<Napi::Number>().Int32Value();
 }
 
-Napi::Buffer<std::uint8_t> BrotliPreparedDictionary::CollectEncoderOutput(
-    Napi::Env env,
-    BrotliEncoderState* state,
-    const std::uint8_t* data,
-    std::size_t size) {
+Napi::Buffer<std::uint8_t> BrotliPreparedDictionary::CollectEncoderOutput(Napi::Env env,
+                                                                          BrotliEncoderState* state,
+                                                                          const std::uint8_t* data,
+                                                                          std::size_t size) {
   std::vector<std::uint8_t> output;
   size_t available_in = size;
   const uint8_t* next_in = data;
@@ -142,13 +133,8 @@ Napi::Buffer<std::uint8_t> BrotliPreparedDictionary::CollectEncoderOutput(
     size_t available_out = 0;
     uint8_t* next_out = nullptr;
     if (!BrotliEncoderCompressStream(
-            state,
-            available_in == 0 ? BROTLI_OPERATION_FINISH : BROTLI_OPERATION_PROCESS,
-            &available_in,
-            &next_in,
-            &available_out,
-            &next_out,
-            nullptr)) {
+            state, available_in == 0 ? BROTLI_OPERATION_FINISH : BROTLI_OPERATION_PROCESS,
+            &available_in, &next_in, &available_out, &next_out, nullptr)) {
       throw Napi::Error::New(env, "Brotli compression failed.");
     }
   }
@@ -205,11 +191,8 @@ Napi::Value BrotliPreparedDictionary::DecompressSync(const Napi::CallbackInfo& i
     throw Napi::Error::New(env, "Failed to create the Brotli decoder state.");
   }
 
-  if (!BrotliDecoderAttachDictionary(
-          state,
-          BROTLI_SHARED_DICTIONARY_RAW,
-          bytes_.size(),
-          bytes_.data())) {
+  if (!BrotliDecoderAttachDictionary(state, BROTLI_SHARED_DICTIONARY_RAW, bytes_.size(),
+                                     bytes_.data())) {
     BrotliDecoderDestroyInstance(state);
     throw Napi::Error::New(env, "Failed to attach the Brotli dictionary.");
   }
@@ -224,13 +207,8 @@ Napi::Value BrotliPreparedDictionary::DecompressSync(const Napi::CallbackInfo& i
 
     size_t available_out = kOutputChunkSize;
     uint8_t* next_out = output.data() + previous_size;
-    BrotliDecoderResult result = BrotliDecoderDecompressStream(
-        state,
-        &available_in,
-        &next_in,
-        &available_out,
-        &next_out,
-        nullptr);
+    BrotliDecoderResult result = BrotliDecoderDecompressStream(state, &available_in, &next_in,
+                                                               &available_out, &next_out, nullptr);
 
     output.resize(previous_size + (kOutputChunkSize - available_out));
 

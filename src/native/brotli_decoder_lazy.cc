@@ -7,4 +7,3 @@ extern "C" void BrotliDecoderLazyStaticInit(void) {
   }();
   (void)ok;
 }
-

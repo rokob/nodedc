@@ -44,7 +44,7 @@ async function run(command, args) {
       cwd: packageRoot,
       env: process.env,
       stdio: 'inherit',
-      shell: false
+      shell: false,
     });
 
     child.on('error', reject);

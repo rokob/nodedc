@@ -32,11 +32,11 @@ const bytes = await readFile('./dicts/app.zdict');
 
 const dictionary = new PreparedDictionary({
   algorithm: 'zstd',
-  bytes
+  bytes,
 });
 
 const compressed = await dictionary.compress(Buffer.from('hello world'), {
-  quality: 6
+  quality: 6,
 });
 
 const plain = await dictionary.decompress(compressed);
@@ -116,17 +116,17 @@ import { trainBrotliDictionary, trainZstdDictionary } from '@rokob/nodedc';
 const samples = [
   await readFile('./samples/a.html'),
   await readFile('./samples/b.html'),
-  await readFile('./samples/c.html')
+  await readFile('./samples/c.html'),
 ];
 
 const zstd = trainZstdDictionary(samples, {
   dictSize: 8192,
-  compressionLevel: 6
+  compressionLevel: 6,
 });
 
 const brotli = trainBrotliDictionary(samples, {
   engine: 'dsh',
-  targetDictLen: 12288
+  targetDictLen: 12288,
 });
 
 console.log(zstd.sha256, zstd.dictionaryId);
@@ -151,11 +151,11 @@ const store = new DictionaryStore();
 
 for (const [algorithm, file] of [
   ['zstd', './dicts/app.zdict'],
-  ['brotli', './dicts/app.dict']
+  ['brotli', './dicts/app.dict'],
 ]) {
   const dictionary = new PreparedDictionary({
     algorithm,
-    bytes: await readFile(file)
+    bytes: await readFile(file),
   });
   store.add(dictionary);
 }
@@ -169,7 +169,7 @@ serve as the dictionary resource:
 ```js
 const browserDictionary = new PreparedDictionary({
   algorithm: 'zstd',
-  bytes: await readFile('./dicts/browser-dictionary.txt')
+  bytes: await readFile('./dicts/browser-dictionary.txt'),
 });
 ```
 
@@ -178,7 +178,7 @@ For non-browser Zstandard use, loading a trained `.zdict` file is fine:
 ```js
 const trainedDictionary = new PreparedDictionary({
   algorithm: 'zstd',
-  bytes: await readFile('./dicts/app.zdict')
+  bytes: await readFile('./dicts/app.zdict'),
 });
 ```
 
@@ -190,7 +190,7 @@ import { PreparedDictionary } from '@rokob/nodedc';
 
 const dictionary = await PreparedDictionary.fromFile('/app/dicts/app.zdict.br', {
   algorithm: 'zstd',
-  compression: 'brotli'
+  compression: 'brotli',
 });
 ```
 
@@ -199,7 +199,7 @@ There is also a synchronous form:
 ```js
 const dictionary = PreparedDictionary.fromFileSync('/app/dicts/app.dict.br', {
   algorithm: 'brotli',
-  compression: 'brotli'
+  compression: 'brotli',
 });
 ```
 
@@ -220,7 +220,7 @@ const body = Buffer.from(JSON.stringify({ ok: true }));
 
 const compressed = await dictionary.compress(body, {
   quality: 6,
-  transport: 'raw'
+  transport: 'raw',
 });
 ```
 
@@ -233,9 +233,9 @@ await pipeline(
   sourceStream,
   dictionary.createCompressStream({
     quality: 6,
-    transport: 'raw'
+    transport: 'raw',
   }),
-  response
+  response,
 );
 ```
 
@@ -268,19 +268,16 @@ const hash = parseAvailableDictionaryHeader(req.headers['available-dictionary'])
 ### Negotiating a response
 
 ```js
-import {
-  DictionaryStore,
-  negotiateCompressionFromStore
-} from '@rokob/nodedc';
+import { DictionaryStore, negotiateCompressionFromStore } from '@rokob/nodedc';
 
 function selectCompression(req, store) {
   return negotiateCompressionFromStore(
     {
       acceptEncoding: req.headers['accept-encoding'],
-      availableDictionary: req.headers['available-dictionary']
+      availableDictionary: req.headers['available-dictionary'],
     },
     store,
-    { algorithm: 'zstd' }
+    { algorithm: 'zstd' },
   );
 }
 ```
@@ -307,8 +304,7 @@ The HTTP helpers are transport-only. They never return `br` or `zstd` for a
 prepared dictionary, because ordinary HTTP `br` / `zstd` content codings do not
 carry shared-dictionary identity.
 
-`Available-Dictionary` is interpreted as a single dictionary hash, matching RFC
-9842. If the header is missing or contains multiple values, negotiation returns
+`Available-Dictionary` is interpreted as a single dictionary hash, matching RFC 9842. If the header is missing or contains multiple values, negotiation returns
 `null`.
 
 ### End-to-end server sketch
@@ -317,49 +313,53 @@ carry shared-dictionary identity.
 import { createReadStream } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import http from 'node:http';
-import {
-  DictionaryStore,
-  PreparedDictionary,
-  negotiateCompressionFromStore
-} from '@rokob/nodedc';
+import { DictionaryStore, PreparedDictionary, negotiateCompressionFromStore } from '@rokob/nodedc';
 
 const store = new DictionaryStore();
 
-store.add(new PreparedDictionary({
-  algorithm: 'zstd',
-  bytes: await readFile('./dicts/app.zdict')
-}));
+store.add(
+  new PreparedDictionary({
+    algorithm: 'zstd',
+    bytes: await readFile('./dicts/app.zdict'),
+  }),
+);
 
-store.add(new PreparedDictionary({
-  algorithm: 'brotli',
-  bytes: await readFile('./dicts/app.dict')
-}));
+store.add(
+  new PreparedDictionary({
+    algorithm: 'brotli',
+    bytes: await readFile('./dicts/app.dict'),
+  }),
+);
 
-http.createServer(async (req, res) => {
-  const match = negotiateCompressionFromStore(
-    {
-      acceptEncoding: req.headers['accept-encoding'],
-      availableDictionary: req.headers['available-dictionary']
-    },
-    store
-  );
+http
+  .createServer(async (req, res) => {
+    const match = negotiateCompressionFromStore(
+      {
+        acceptEncoding: req.headers['accept-encoding'],
+        availableDictionary: req.headers['available-dictionary'],
+      },
+      store,
+    );
 
-  if (!match) {
+    if (!match) {
+      res.setHeader('content-type', 'text/html; charset=utf-8');
+      createReadStream('./samples/index.html').pipe(res);
+      return;
+    }
+
     res.setHeader('content-type', 'text/html; charset=utf-8');
-    createReadStream('./samples/index.html').pipe(res);
-    return;
-  }
+    res.setHeader('content-encoding', match.contentEncoding);
 
-  res.setHeader('content-type', 'text/html; charset=utf-8');
-  res.setHeader('content-encoding', match.contentEncoding);
-
-  createReadStream('./samples/index.html')
-    .pipe(match.dictionary.createCompressStream({
-      quality: 6,
-      transport: match.transport
-    }))
-    .pipe(res);
-}).listen(3000);
+    createReadStream('./samples/index.html')
+      .pipe(
+        match.dictionary.createCompressStream({
+          quality: 6,
+          transport: match.transport,
+        }),
+      )
+      .pipe(res);
+  })
+  .listen(3000);
 ```
 
 ## Transport mode
@@ -424,11 +424,11 @@ Example result on an Apple `M1 Max` (`arm64`), macOS `26.1`, Node `v23.9.0`,
 with an `8192` byte trained dictionary and `100000` responses from the same
 payload family:
 
-| implementation | duration (ms) | ops/sec | input MB/sec | compressed/input ratio |
-| --- | ---: | ---: | ---: | ---: |
-| built-in one-shot | 1226.96 | 81502 | 83.32 | 0.448 |
-| nodedc public api | 723.19 | 138275 | 141.35 | 0.058 |
-| nodedc prepared native | 694.82 | 143922 | 147.13 | 0.058 |
+| implementation         | duration (ms) | ops/sec | input MB/sec | compressed/input ratio |
+| ---------------------- | ------------: | ------: | -----------: | ---------------------: |
+| built-in one-shot      |       1226.96 |   81502 |        83.32 |                  0.448 |
+| nodedc public api      |        723.19 |  138275 |       141.35 |                  0.058 |
+| nodedc prepared native |        694.82 |  143922 |       147.13 |                  0.058 |
 
 Interpretation:
 

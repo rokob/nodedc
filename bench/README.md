@@ -7,4 +7,3 @@ This directory will hold benchmark cases for:
 - comparison against Node built-in dictionary support
 
 The benchmark harness is not implemented yet.
-

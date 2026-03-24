@@ -26,11 +26,8 @@ class ZstdCompressor : public Napi::ObjectWrap<ZstdCompressor> {
   Napi::Value Push(const Napi::CallbackInfo& info);
   Napi::Value End(const Napi::CallbackInfo& info);
 
-  Napi::Buffer<std::uint8_t> Process(
-      Napi::Env env,
-      const std::uint8_t* data,
-      std::size_t size,
-      bool end_frame);
+  Napi::Buffer<std::uint8_t> Process(Napi::Env env, const std::uint8_t* data, std::size_t size,
+                                     bool end_frame);
 
   Napi::ObjectReference dictionary_ref_;
   PreparedDictionary* dictionary_;
@@ -50,10 +47,7 @@ class ZstdDecompressor : public Napi::ObjectWrap<ZstdDecompressor> {
   Napi::Value Push(const Napi::CallbackInfo& info);
   Napi::Value End(const Napi::CallbackInfo& info);
 
-  Napi::Buffer<std::uint8_t> Process(
-      Napi::Env env,
-      const std::uint8_t* data,
-      std::size_t size);
+  Napi::Buffer<std::uint8_t> Process(Napi::Env env, const std::uint8_t* data, std::size_t size);
 
   Napi::ObjectReference dictionary_ref_;
   PreparedDictionary* dictionary_;
@@ -65,4 +59,3 @@ class ZstdDecompressor : public Napi::ObjectWrap<ZstdDecompressor> {
 }  // namespace nodedc
 
 #endif  // NODEDC_ZSTD_STREAM_H_
-

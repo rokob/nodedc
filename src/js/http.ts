@@ -1,11 +1,15 @@
-import { contentEncodingFor, hashBytesToStructuredField, structuredFieldToHashBytes } from './transport.js';
+import {
+  contentEncodingFor,
+  hashBytesToStructuredField,
+  structuredFieldToHashBytes,
+} from './transport.js';
 import { DictionaryStore } from './store.js';
 
 import type {
   NegotiationInput,
   NegotiationOptions,
   NegotiationResult,
-  PreparedDictionaryShape
+  PreparedDictionaryShape,
 } from './types.js';
 
 function parseCsvTokens(value: string | null | undefined): string[] {
@@ -24,7 +28,7 @@ export function parseAcceptEncodingHeader(value: string | null | undefined): Set
     parseCsvTokens(value)
       .map((token) => token.split(';', 1)[0])
       .filter((encoding): encoding is string => encoding !== undefined)
-      .map((encoding) => encoding.toLowerCase())
+      .map((encoding) => encoding.toLowerCase()),
   );
 }
 
@@ -63,7 +67,7 @@ export function parseAvailableDictionaryHeader(value: string | null | undefined)
 }
 
 export function formatAvailableDictionaryHeader(
-  dictionary: Pick<PreparedDictionaryShape, 'hash'>
+  dictionary: Pick<PreparedDictionaryShape, 'hash'>,
 ): string {
   return hashBytesToStructuredField(dictionary.hash);
 }
@@ -71,7 +75,7 @@ export function formatAvailableDictionaryHeader(
 export function negotiateCompression<TDictionary extends PreparedDictionaryShape>(
   input: NegotiationInput,
   candidates: Iterable<TDictionary>,
-  options: NegotiationOptions = {}
+  options: NegotiationOptions = {},
 ): NegotiationResult<TDictionary> | null {
   const acceptedEncodings = parseAcceptEncodingHeader(input.acceptEncoding);
   const availableDictionary = parseAvailableDictionaryHeader(input.availableDictionary);
@@ -85,7 +89,7 @@ export function negotiateCompression<TDictionary extends PreparedDictionaryShape
           return {
             dictionary,
             contentEncoding: transportEncoding,
-            transport: 'transport'
+            transport: 'transport',
           };
         }
       }
@@ -98,7 +102,7 @@ export function negotiateCompression<TDictionary extends PreparedDictionaryShape
 export function negotiateCompressionFromStore(
   input: NegotiationInput,
   store: DictionaryStore,
-  options: NegotiationOptions = {}
+  options: NegotiationOptions = {},
 ): NegotiationResult | null {
   const acceptedEncodings = parseAcceptEncodingHeader(input.acceptEncoding);
   const availableDictionary = parseAvailableDictionaryHeader(input.availableDictionary);
@@ -116,7 +120,7 @@ export function negotiateCompressionFromStore(
         return {
           dictionary,
           contentEncoding: transportEncoding,
-          transport: 'transport'
+          transport: 'transport',
         };
       }
     }

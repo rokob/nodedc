@@ -11,7 +11,9 @@ const packageRoot = fileURLToPath(new URL('../../', import.meta.url));
 const runtime = process.versions.electron ? 'electron' : 'node';
 const arch = process.env.npm_config_arch || os.arch();
 const platform = process.env.npm_config_platform || os.platform();
-const libc = process.env.LIBC || (platform === 'linux' && existsSync('/etc/alpine-release') ? 'musl' : 'glibc');
+const libc =
+  process.env.LIBC ||
+  (platform === 'linux' && existsSync('/etc/alpine-release') ? 'musl' : 'glibc');
 const armVersion = (process.config.variables as { arm_version?: string | number }).arm_version;
 const armv = process.env.ARM_VERSION || (arch === 'arm64' ? '8' : `${armVersion ?? ''}`) || '';
 const uv = (process.versions.uv || '').split('.')[0];
@@ -22,14 +24,16 @@ export interface NativeBinding {
   readonly BrotliPreparedDictionary: new (bytes: Buffer) => NativeBrotliPreparedDictionary;
   readonly BrotliCompressor: new (
     dictionary: NativeBrotliPreparedDictionary,
-    options?: NativeBrotliCompressOptions
+    options?: NativeBrotliCompressOptions,
   ) => NativeBrotliCompressor;
   readonly ZstdPreparedDictionary: new (bytes: Buffer) => NativeZstdPreparedDictionary;
   readonly ZstdCompressor: new (
     dictionary: NativeZstdPreparedDictionary,
-    options?: NativeZstdCompressOptions
+    options?: NativeZstdCompressOptions,
   ) => NativeZstdCompressor;
-  readonly ZstdDecompressor: new (dictionary: NativeZstdPreparedDictionary) => NativeZstdDecompressor;
+  readonly ZstdDecompressor: new (
+    dictionary: NativeZstdPreparedDictionary,
+  ) => NativeZstdDecompressor;
 }
 
 export interface NativeTrainBinding {
@@ -38,7 +42,7 @@ export interface NativeTrainBinding {
   readonly hasBrotliTrainer: boolean;
   trainZstdSync(
     samples: Buffer[],
-    options?: NativeZstdTrainOptions
+    options?: NativeZstdTrainOptions,
   ): {
     readonly dictionary: Buffer;
     readonly size: number;
@@ -46,7 +50,7 @@ export interface NativeTrainBinding {
   };
   trainBrotliSync(
     samples: Buffer[],
-    options?: NativeBrotliTrainOptions
+    options?: NativeBrotliTrainOptions,
   ): {
     readonly dictionary: Buffer;
     readonly size: number;
@@ -127,7 +131,11 @@ function parseTuple(name: string) {
   }
   const tuplePlatform = parts[0];
   const architectures = parts[1]?.split('+') ?? [];
-  if (!tuplePlatform || architectures.length === 0 || architectures.some((value) => value.length === 0)) {
+  if (
+    !tuplePlatform ||
+    architectures.length === 0 ||
+    architectures.some((value) => value.length === 0)
+  ) {
     return null;
   }
   return { name, platform: tuplePlatform, architectures };
@@ -140,9 +148,8 @@ function parseTags(targetName: string, file: string) {
   if (!(file === `${targetName}.node` || file.startsWith(`${targetName}.`))) {
     return null;
   }
-  const tagSection = file === `${targetName}.node`
-    ? ''
-    : file.slice(targetName.length + 1, -'.node'.length);
+  const tagSection =
+    file === `${targetName}.node` ? '' : file.slice(targetName.length + 1, -'.node'.length);
   const parts = tagSection.length === 0 ? [] : tagSection.split('.');
   const tags: {
     file: string;
@@ -198,7 +205,7 @@ function matchTags(tags: NonNullable<ReturnType<typeof parseTags>>) {
 
 function compareTags(
   a: NonNullable<ReturnType<typeof parseTags>>,
-  b: NonNullable<ReturnType<typeof parseTags>>
+  b: NonNullable<ReturnType<typeof parseTags>>,
 ) {
   if (a.runtime !== b.runtime) {
     return a.runtime === runtime ? -1 : 1;
@@ -213,7 +220,10 @@ function compareTags(
 }
 
 function resolveNamedBinding(targetName: string): string {
-  for (const directory of [path.join(packageRoot, 'build', 'Release'), path.join(packageRoot, 'build', 'Debug')]) {
+  for (const directory of [
+    path.join(packageRoot, 'build', 'Release'),
+    path.join(packageRoot, 'build', 'Debug'),
+  ]) {
     const candidate = path.join(directory, `${targetName}.node`);
     if (existsSync(candidate)) {
       return candidate;
@@ -243,7 +253,7 @@ function resolveNamedBinding(targetName: string): string {
   }
 
   throw new Error(
-    `No native build was found for target=${targetName} platform=${platform} arch=${arch} runtime=${runtime} abi=${process.versions.modules} uv=${uv} armv=${armv} libc=${libc} node=${process.versions.node}\n    loaded from: ${packageRoot}\n`
+    `No native build was found for target=${targetName} platform=${platform} arch=${arch} runtime=${runtime} abi=${process.versions.modules} uv=${uv} armv=${armv} libc=${libc} node=${process.versions.node}\n    loaded from: ${packageRoot}\n`,
   );
 }
 
@@ -262,7 +272,7 @@ export function loadNativeBinding(): NativeBinding {
   } catch (error) {
     cachedBinding = null;
     throw new NativeBindingUnavailableError(
-      error instanceof Error ? `${error.message}` : 'The nodedc native binding is not available.'
+      error instanceof Error ? `${error.message}` : 'The nodedc native binding is not available.',
     );
   }
 }
@@ -282,7 +292,9 @@ export function loadNativeTrainBinding(): NativeTrainBinding {
   } catch (error) {
     cachedTrainBinding = null;
     throw new NativeBindingUnavailableError(
-      error instanceof Error ? `${error.message}` : 'The nodedc training native binding is not available.'
+      error instanceof Error
+        ? `${error.message}`
+        : 'The nodedc training native binding is not available.',
     );
   }
 }

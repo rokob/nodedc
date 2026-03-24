@@ -8,7 +8,7 @@ const TRAINING_SAMPLE_COUNT = 512;
 const DICT_SIZE = 8_192;
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.stack ?? error.message : String(error));
+  console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
   process.exitCode = 1;
 });
 
@@ -18,43 +18,59 @@ async function main() {
   const trainingSamples = makePayloadFamily(TRAINING_SAMPLE_COUNT);
   const trained = trainZstdDictionary(trainingSamples, {
     dictSize: DICT_SIZE,
-    compressionLevel: QUALITY
+    compressionLevel: QUALITY,
   });
 
   const prepared = new PreparedDictionary({
     algorithm: 'zstd',
-    bytes: trained.dictionary
+    bytes: trained.dictionary,
   });
   const nativeBinding = loadNativeBinding();
   const nativePrepared = new nativeBinding.ZstdPreparedDictionary(trained.dictionary);
   const builtinOptions = {
     dictionary: trained.dictionary,
     params: {
-      [constants.ZSTD_c_compressionLevel]: QUALITY
-    }
+      [constants.ZSTD_c_compressionLevel]: QUALITY,
+    },
   };
   const nativeOptions = { quality: QUALITY };
 
   console.log('# Zstd prepared-dictionary benchmark');
   console.log(`# Node ${process.version}`);
-  console.log(`# trained dictionary size=${trained.size} dictId=${trained.dictionaryId ?? 'none'} sha256=${trained.sha256}`);
+  console.log(
+    `# trained dictionary size=${trained.size} dictId=${trained.dictionaryId ?? 'none'} sha256=${trained.sha256}`,
+  );
   console.log('#');
-  console.log('# payload family: HTML-like responses with shared structure and per-request variations');
+  console.log(
+    '# payload family: HTML-like responses with shared structure and per-request variations',
+  );
   console.log('# columns: responses duration_ms ops_per_sec input_mb_per_sec ratio');
   console.log('');
 
   const warmupPayloads = makePayloadFamily(512);
-  await warmup('built-in one-shot', warmupPayloads, (payload) => zstdCompressSync(payload, builtinOptions));
-  await warmup('nodedc public api', warmupPayloads, (payload) => prepared.compress(payload, nativeOptions));
-  await warmup('nodedc prepared native', warmupPayloads, (payload) => nativePrepared.compressSync(payload, nativeOptions));
+  await warmup('built-in one-shot', warmupPayloads, (payload) =>
+    zstdCompressSync(payload, builtinOptions),
+  );
+  await warmup('nodedc public api', warmupPayloads, (payload) =>
+    prepared.compress(payload, nativeOptions),
+  );
+  await warmup('nodedc prepared native', warmupPayloads, (payload) =>
+    nativePrepared.compressSync(payload, nativeOptions),
+  );
 
   for (const count of COUNTS) {
     const payloads = makePayloadFamily(count);
     console.log(`responses=${count}`);
 
-    const builtIn = await benchmark(payloads, (payload) => zstdCompressSync(payload, builtinOptions));
-    const publicApi = await benchmark(payloads, (payload) => prepared.compress(payload, nativeOptions));
-    const nativePreparedResult = await benchmark(payloads, (payload) => nativePrepared.compressSync(payload, nativeOptions));
+    const builtIn = await benchmark(payloads, (payload) =>
+      zstdCompressSync(payload, builtinOptions),
+    );
+    const publicApi = await benchmark(payloads, (payload) =>
+      prepared.compress(payload, nativeOptions),
+    );
+    const nativePreparedResult = await benchmark(payloads, (payload) =>
+      nativePrepared.compressSync(payload, nativeOptions),
+    );
 
     printRow('built-in one-shot', count, builtIn);
     printRow('nodedc public api', count, publicApi);
@@ -68,7 +84,7 @@ function assertBuiltInDictionarySupport() {
     zstdCompressSync(Buffer.from('ok'), { dictionary: Buffer.from('dict') });
   } catch (error) {
     throw new Error(
-      `This Node runtime does not support built-in zstd dictionary compression: ${error instanceof Error ? error.message : String(error)}`
+      `This Node runtime does not support built-in zstd dictionary compression: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }
@@ -96,7 +112,7 @@ async function benchmark(payloads, compress) {
     elapsedMs,
     opsPerSec: payloads.length / elapsedSeconds,
     inputMbPerSec: totalInputBytes / (1024 * 1024) / elapsedSeconds,
-    ratio: totalCompressedBytes / totalInputBytes
+    ratio: totalCompressedBytes / totalInputBytes,
   };
 }
 
@@ -108,8 +124,8 @@ function printRow(label, count, result) {
       result.elapsedMs.toFixed(2).padStart(12),
       result.opsPerSec.toFixed(0).padStart(12),
       result.inputMbPerSec.toFixed(2).padStart(12),
-      result.ratio.toFixed(3).padStart(8)
-    ].join(' ')
+      result.ratio.toFixed(3).padStart(8),
+    ].join(' '),
   );
 }
 
@@ -127,10 +143,12 @@ function makePayloadFamily(count) {
       'transport-dictionary',
       'edge-cache',
       'request-coalescing',
-      'brotli-training'
+      'brotli-training',
     ].slice(0, 2 + (i % 4));
-    const cards = Array.from({ length: 4 + (i % 3) }, (_, cardIndex) =>
-      `<li class="card card-${cardIndex}"><h3>Metric ${section}-${cardIndex}</h3><p>User ${userId} ${city} ${locale} ${plan}</p></li>`
+    const cards = Array.from(
+      { length: 4 + (i % 3) },
+      (_, cardIndex) =>
+        `<li class="card card-${cardIndex}"><h3>Metric ${section}-${cardIndex}</h3><p>User ${userId} ${city} ${locale} ${plan}</p></li>`,
     ).join('');
     const html = [
       '<!doctype html>',
@@ -150,9 +168,9 @@ function makePayloadFamily(count) {
         plan,
         featureFlags,
         section,
-        requestId: `req-${String(i).padStart(6, '0')}`
+        requestId: `req-${String(i).padStart(6, '0')}`,
       })}</script>`,
-      '</main></body></html>'
+      '</main></body></html>',
     ].join('');
 
     payloads.push(Buffer.from(html));

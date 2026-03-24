@@ -11,4 +11,3 @@ export class NotImplementedPhaseError extends Error {
     this.name = 'NotImplementedPhaseError';
   }
 }
-

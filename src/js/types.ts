@@ -77,7 +77,9 @@ export interface NegotiationOptions {
   preferredAlgorithm?: Algorithm;
 }
 
-export interface NegotiationResult<TDictionary extends PreparedDictionaryShape = PreparedDictionaryShape> {
+export interface NegotiationResult<
+  TDictionary extends PreparedDictionaryShape = PreparedDictionaryShape,
+> {
   dictionary: TDictionary;
   contentEncoding: 'br' | 'zstd' | 'dcb' | 'dcz';
   transport: TransportMode;

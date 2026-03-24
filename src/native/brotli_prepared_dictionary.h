@@ -32,11 +32,10 @@ class BrotliPreparedDictionary : public Napi::ObjectWrap<BrotliPreparedDictionar
   Napi::Value CompressSync(const Napi::CallbackInfo& info);
   Napi::Value DecompressSync(const Napi::CallbackInfo& info);
 
-  static Napi::Buffer<std::uint8_t> CollectEncoderOutput(
-      Napi::Env env,
-      BrotliEncoderStateStruct* state,
-      const std::uint8_t* data,
-      std::size_t size);
+  static Napi::Buffer<std::uint8_t> CollectEncoderOutput(Napi::Env env,
+                                                         BrotliEncoderStateStruct* state,
+                                                         const std::uint8_t* data,
+                                                         std::size_t size);
 
   std::vector<std::uint8_t> bytes_;
   BrotliEncoderPreparedDictionaryStruct* prepared_;

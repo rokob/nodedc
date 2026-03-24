@@ -24,11 +24,8 @@ class BrotliCompressor : public Napi::ObjectWrap<BrotliCompressor> {
   Napi::Value Push(const Napi::CallbackInfo& info);
   Napi::Value End(const Napi::CallbackInfo& info);
 
-  Napi::Buffer<std::uint8_t> Process(
-      Napi::Env env,
-      const std::uint8_t* data,
-      std::size_t size,
-      bool finish);
+  Napi::Buffer<std::uint8_t> Process(Napi::Env env, const std::uint8_t* data, std::size_t size,
+                                     bool finish);
 
   Napi::ObjectReference dictionary_ref_;
   BrotliPreparedDictionary* dictionary_;
@@ -39,4 +36,3 @@ class BrotliCompressor : public Napi::ObjectWrap<BrotliCompressor> {
 }  // namespace nodedc
 
 #endif  // NODEDC_BROTLI_STREAM_H_
-

@@ -6,7 +6,7 @@ import { PreparedDictionary } from '../../src/js/index.js';
 test('PreparedDictionary brotli compresses and decompresses with a prepared dictionary', async () => {
   const dictionary = new PreparedDictionary({
     algorithm: 'brotli',
-    bytes: Buffer.from('brotli raw prefix dictionary content')
+    bytes: Buffer.from('brotli raw prefix dictionary content'),
   });
 
   const input = Buffer.from('brotli raw prefix dictionary content :: payload payload payload');
@@ -20,7 +20,7 @@ test('PreparedDictionary brotli compresses and decompresses with a prepared dict
 test('PreparedDictionary brotli can be reused across independent one-shot operations', async () => {
   const dictionary = new PreparedDictionary({
     algorithm: 'brotli',
-    bytes: Buffer.from('another brotli raw dictionary')
+    bytes: Buffer.from('another brotli raw dictionary'),
   });
 
   const first = Buffer.from('another brotli raw dictionary :: first');
