@@ -42,6 +42,8 @@
     "lint": "tsc -p tsconfig.json --noEmit",
     "build:prebuilts": "node ./scripts/build-prebuilts.mjs",
     "bench:zstd-family": "node ./bench/zstd-family.mjs",
+    "bench:zstd-stream-reuse": "node ./bench/zstd-stream-reuse.mjs",
+    "bench:zstd-stream-layers": "node ./bench/zstd-stream-layers.mjs",
     "verify:prebuilts": "node ./scripts/verify-prebuilds.mjs",
     "train:zstd": "node ./bin/nodedc-train-zstd.mjs",
     "train:brotli": "node ./bin/nodedc-train-brotli.mjs",

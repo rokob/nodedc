@@ -6,4 +6,13 @@ This directory will hold benchmark cases for:
 - streaming compression with shared dictionaries
 - comparison against Node built-in dictionary support
 
-The benchmark harness is not implemented yet.
+Current benchmarks:
+
+- `npm run bench:zstd-family`
+  compares repeated one-shot Zstd compression using a trained dictionary
+- `npm run bench:zstd-stream-reuse`
+  compares many Zstd compression streams using a trained dictionary and
+  highlights prepared-dictionary reuse versus the built-in stream API
+- `npm run bench:zstd-stream-layers`
+  compares built-in stream piping, `nodedc` stream piping, and direct native
+  `compressInto` calls to isolate where stream overhead is coming from
