@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/rokob/nodedc/compare/nodedc-v0.4.0...nodedc-v0.5.0) (2026-03-25)
+
+
+### Features
+
+* **stream:** move dictionary compression onto async worker threads ([bb8cd57](https://github.com/rokob/nodedc/commit/bb8cd574c64ddccef0693c14fa6ec43164bd9b24))
+
 ## [0.4.0](https://github.com/rokob/nodedc/compare/nodedc-v0.3.0...nodedc-v0.4.0) (2026-03-24)
 
 ### Features
