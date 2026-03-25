@@ -424,15 +424,15 @@ npm run build
 npm run bench:zstd-family
 ```
 
-Example result on an Apple `M1 Max` (`arm64`), macOS `26.1`, Node `v23.9.0`,
+Example result on an Apple `M1 Max` (`arm64`), macOS `26.1`, Node `v22.20.0`,
 with an `8192` byte trained dictionary and `100000` responses from the same
 payload family:
 
 | implementation         | duration (ms) | ops/sec | input MB/sec | compressed/input ratio |
 | ---------------------- | ------------: | ------: | -----------: | ---------------------: |
-| built-in one-shot      |       1226.96 |   81502 |        83.32 |                  0.448 |
-| nodedc public api      |        723.19 |  138275 |       141.35 |                  0.058 |
-| nodedc prepared native |        694.82 |  143922 |       147.13 |                  0.058 |
+| built-in one-shot      |       2362.70 |   42324 |        43.27 |                  0.058 |
+| nodedc public api      |        734.02 |  136236 |       139.27 |                  0.058 |
+| nodedc prepared native |        690.36 |  144853 |       148.08 |                  0.058 |
 
 Interpretation:
 
