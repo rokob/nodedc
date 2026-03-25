@@ -2,23 +2,20 @@
 
 ## [0.4.0](https://github.com/rokob/nodedc/compare/nodedc-v0.3.0...nodedc-v0.4.0) (2026-03-24)
 
-
 ### Features
 
-* **http:** make compression negotiation algorithm preference configurable ([b707627](https://github.com/rokob/nodedc/commit/b707627477c03d0e18cff7464b8e9f4005d1768a))
-
+- **http:** make compression negotiation algorithm preference configurable ([b707627](https://github.com/rokob/nodedc/commit/b707627477c03d0e18cff7464b8e9f4005d1768a))
 
 ### Bug Fixes
 
-* **http:** align dictionary negotiation with RFC 9842 ([8da6ccb](https://github.com/rokob/nodedc/commit/8da6ccbd898788d975bb41889ea09b6e00793dba))
+- **http:** align dictionary negotiation with RFC 9842 ([8da6ccb](https://github.com/rokob/nodedc/commit/8da6ccbd898788d975bb41889ea09b6e00793dba))
 
 ## [0.3.0](https://github.com/rokob/nodedc/compare/nodedc-v0.2.1...nodedc-v0.3.0) (2026-03-23)
 
-
 ### Features
 
-* add dictionary file loading and zstd reuse benchmark ([60680ce](https://github.com/rokob/nodedc/commit/60680ced265a9a9bf81ad3b72a3f12e01ab52976))
-* add store-optimized compression negotiation ([bf0c2fa](https://github.com/rokob/nodedc/commit/bf0c2fa5be7f11a3371cfbeef8d09dbed5950958))
+- add dictionary file loading and zstd reuse benchmark ([60680ce](https://github.com/rokob/nodedc/commit/60680ced265a9a9bf81ad3b72a3f12e01ab52976))
+- add store-optimized compression negotiation ([bf0c2fa](https://github.com/rokob/nodedc/commit/bf0c2fa5be7f11a3371cfbeef8d09dbed5950958))
 
 ## [0.2.1](https://github.com/rokob/nodedc/compare/nodedc-v0.2.0...nodedc-v0.2.1) (2026-03-23)
 

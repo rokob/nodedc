@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <mutex>
 #include <vector>
 
 struct ZSTD_CCtx_s;
@@ -19,19 +20,20 @@ class ZstdCompressor : public Napi::ObjectWrap<ZstdCompressor> {
   static Napi::Function Init(Napi::Env env);
   ZstdCompressor(const Napi::CallbackInfo& info);
   ~ZstdCompressor() override;
+  std::vector<std::uint8_t> Process(const std::uint8_t* data, std::size_t size, bool end_frame);
 
  private:
   static Napi::FunctionReference constructor_;
 
   Napi::Value Push(const Napi::CallbackInfo& info);
+  Napi::Value PushAsync(const Napi::CallbackInfo& info);
   Napi::Value End(const Napi::CallbackInfo& info);
-
-  Napi::Buffer<std::uint8_t> Process(Napi::Env env, const std::uint8_t* data, std::size_t size,
-                                     bool end_frame);
+  Napi::Value EndAsync(const Napi::CallbackInfo& info);
 
   Napi::ObjectReference dictionary_ref_;
   PreparedDictionary* dictionary_;
   ZSTD_CCtx_s* cctx_;
+  std::mutex mutex_;
   bool ended_;
 };
 

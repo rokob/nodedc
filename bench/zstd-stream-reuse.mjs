@@ -2,14 +2,16 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { constants, createZstdCompress, zstdCompressSync, zstdDecompressSync } from 'node:zlib';
 
-import { PreparedDictionary, loadNativeBinding, trainZstdDictionary } from '../dist/js/index.js';
+import { PreparedDictionary, trainZstdDictionary } from '../dist/js/index.js';
 
 const QUALITY = Number(process.env.ZSTD_QUALITY ?? 6);
-const COUNT = Number(process.env.BENCH_STREAM_COUNT ?? 1000);
-const WARMUP_COUNT = Number(process.env.BENCH_WARMUP_STREAMS ?? 128);
+const CONCURRENCY = Number(process.env.BENCH_CONCURRENCY ?? 32);
+const WARMUP_STREAMS = Number(process.env.BENCH_WARMUP_STREAMS ?? 128);
+const STREAM_COUNTS = parseCounts(process.env.BENCH_STREAM_COUNTS ?? '100,1000,5000');
 const TRAINING_SAMPLE_COUNT = Number(process.env.BENCH_TRAINING_SAMPLES ?? 512);
 const DICT_SIZE = Number(process.env.BENCH_DICT_SIZE ?? 8192);
 const TARGET_PAYLOAD_BYTES = Number(process.env.BENCH_TARGET_PAYLOAD_BYTES ?? 200000);
+
 main().catch((error) => {
   console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
   process.exitCode = 1;
@@ -28,8 +30,6 @@ async function main() {
     algorithm: 'zstd',
     bytes: dictionaryBytes,
   });
-  const binding = loadNativeBinding();
-  const nativeDictionary = new binding.ZstdPreparedDictionary(dictionaryBytes);
   const builtinOptions = {
     dictionary: dictionaryBytes,
     params: {
@@ -37,48 +37,53 @@ async function main() {
     },
   };
 
-  await verifyRoundTrip(prepared, dictionaryBytes, builtinOptions, nativeDictionary, binding);
+  await verifyRoundTrip(prepared, dictionaryBytes, builtinOptions);
 
-  console.log('# Zstd stream layers benchmark');
+  console.log('# Zstd stream dictionary-reuse benchmark');
   console.log(`# Node ${process.version}`);
   console.log(
     `# trained zstd dictionary size=${dictionaryBytes.length} sha256=${prepared.hash} dictId=${trained.dictionaryId ?? 'none'} quality=${QUALITY}`,
   );
-  console.log(`# count=${COUNT}`);
+  console.log(`# concurrency=${CONCURRENCY}`);
   console.log(`# target_payload_bytes=${TARGET_PAYLOAD_BYTES}`);
   console.log('#');
   console.log(
-    '# compares built-in stream, nodedc stream, and direct native pushAsync/endAsync use',
+    '# compares repeated stream creation using one reused PreparedDictionary and one trained zstd dictionary',
   );
-  console.log('# columns: requests duration_ms ops_per_sec input_mb_per_sec ratio');
+  console.log('# compares built-in stream + dict against nodedc prepared stream');
+  console.log('# columns: streams duration_ms ops_per_sec input_mb_per_sec ratio');
   console.log('');
 
-  const warmupPayloads = makePayloadFamily(WARMUP_COUNT);
+  const warmupPayloads = makePayloadFamily(WARMUP_STREAMS);
   await warmup('built-in stream + dict', warmupPayloads, (payload) =>
     compressWithBuiltInStream(payload, builtinOptions),
   );
   await warmup('nodedc prepared stream', warmupPayloads, (payload) =>
     compressWithPreparedStream(prepared, payload),
   );
-  await warmup('nodedc direct native', warmupPayloads, (payload) =>
-    compressWithDirectNative(binding, nativeDictionary, payload),
-  );
 
-  const payloads = makePayloadFamily(COUNT);
+  for (const count of STREAM_COUNTS) {
+    const payloads = makePayloadFamily(count);
+    console.log(`streams=${count}`);
 
-  const builtIn = await benchmark(payloads, (payload) =>
-    compressWithBuiltInStream(payload, builtinOptions),
-  );
-  const preparedStream = await benchmark(payloads, (payload) =>
-    compressWithPreparedStream(prepared, payload),
-  );
-  const directNative = await benchmark(payloads, (payload) =>
-    compressWithDirectNative(binding, nativeDictionary, payload),
-  );
+    const builtIn = await benchmarkStreaming(payloads, (payload) =>
+      compressWithBuiltInStream(payload, builtinOptions),
+    );
+    const preparedStream = await benchmarkStreaming(payloads, (payload) =>
+      compressWithPreparedStream(prepared, payload),
+    );
 
-  printRow('built-in stream + dict', COUNT, builtIn);
-  printRow('nodedc prepared stream', COUNT, preparedStream);
-  printRow('nodedc direct native', COUNT, directNative);
+    printRow('built-in stream + dict', count, builtIn);
+    printRow('nodedc prepared stream', count, preparedStream);
+    console.log('');
+  }
+}
+
+function parseCounts(value) {
+  return value
+    .split(',')
+    .map((part) => Number(part.trim()))
+    .filter((entry) => Number.isFinite(entry) && entry > 0);
 }
 
 function assertBuiltInDictionarySupport() {
@@ -91,49 +96,50 @@ function assertBuiltInDictionarySupport() {
   }
 }
 
-async function verifyRoundTrip(
-  prepared,
-  dictionaryBytes,
-  builtinOptions,
-  nativeDictionary,
-  binding,
-) {
+async function verifyRoundTrip(prepared, dictionaryBytes, builtinOptions) {
   const sample = makePayloadFamily(1)[0];
 
   const builtinCompressed = zstdCompressSync(sample, builtinOptions);
   const builtinRoundTrip = zstdDecompressSync(builtinCompressed, { dictionary: dictionaryBytes });
   if (!builtinRoundTrip.equals(sample)) {
-    throw new Error('Built-in zstd dictionary round-trip failed.');
+    throw new Error('Built-in zstd dictionary round-trip failed for the stream benchmark sample.');
   }
 
   const preparedCompressed = await prepared.compress(sample, { quality: QUALITY });
   const preparedRoundTrip = await prepared.decompress(preparedCompressed);
   if (!preparedRoundTrip.equals(sample)) {
-    throw new Error('nodedc prepared round-trip failed.');
-  }
-
-  const directCompressed = await compressWithDirectNative(binding, nativeDictionary, sample);
-  const directRoundTrip = await prepared.decompress(directCompressed);
-  if (!directRoundTrip.equals(sample)) {
-    throw new Error('nodedc direct native round-trip failed.');
+    throw new Error(
+      'nodedc prepared dictionary round-trip failed for the stream benchmark sample.',
+    );
   }
 }
 
 async function warmup(name, payloads, compress) {
-  await benchmark(payloads, compress);
-  console.log(`# warmed ${name} with ${payloads.length} requests`);
+  await benchmarkStreaming(payloads, compress);
+  console.log(`# warmed ${name} with ${payloads.length} streams`);
 }
 
-async function benchmark(payloads, compress) {
+async function benchmarkStreaming(payloads, compress) {
   let totalInputBytes = 0;
   let totalCompressedBytes = 0;
+  let index = 0;
   const start = process.hrtime.bigint();
 
-  for (const payload of payloads) {
-    totalInputBytes += payload.length;
-    const compressed = await compress(payload);
-    totalCompressedBytes += compressed.length;
+  async function worker() {
+    while (true) {
+      const payload = payloads[index];
+      index += 1;
+      if (!payload) {
+        return;
+      }
+
+      totalInputBytes += payload.length;
+      const compressed = await compress(payload);
+      totalCompressedBytes += compressed.length;
+    }
   }
+
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, payloads.length) }, () => worker()));
 
   const elapsedMs = Number(process.hrtime.bigint() - start) / 1e6;
   const elapsedSeconds = elapsedMs / 1000;
@@ -166,25 +172,6 @@ async function compressWithPreparedStream(prepared, payload) {
 
   await pipeline(Readable.from([payload.subarray(0, 24), payload.subarray(24)]), compressor);
   return Buffer.concat(chunks);
-}
-
-async function compressWithDirectNative(binding, nativeDictionary, payload) {
-  const compressor = new binding.ZstdCompressor(nativeDictionary, { quality: QUALITY });
-  const outputParts = [];
-
-  for (const chunk of [payload.subarray(0, 24), payload.subarray(24)]) {
-    const output = await compressor.pushAsync(chunk);
-    if (output.length > 0) {
-      outputParts.push(output);
-    }
-  }
-
-  const tail = await compressor.endAsync();
-  if (tail.length > 0) {
-    outputParts.push(tail);
-  }
-
-  return Buffer.concat(outputParts);
 }
 
 function printRow(label, count, result) {
@@ -235,7 +222,7 @@ function makePayloadFamily(count) {
       '<!doctype html>',
       '<html lang="en"><head>',
       '<meta charset="utf-8">',
-      '<title>nodedc stream layers payload</title>',
+      '<title>nodedc stream benchmark payload</title>',
       '<meta name="viewport" content="width=device-width, initial-scale=1">',
       `<meta name="user-id" content="${userId}">`,
       '</head><body>',

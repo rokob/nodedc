@@ -71,7 +71,9 @@ export interface NativeBrotliCompressOptions {
 
 export interface NativeBrotliCompressor {
   push(input: Buffer): Buffer;
+  pushAsync(input: Buffer): Promise<Buffer>;
   end(): Buffer;
+  endAsync(): Promise<Buffer>;
 }
 
 export interface NativeZstdPreparedDictionary {
@@ -113,7 +115,9 @@ export interface NativeBrotliTrainOptions {
 
 export interface NativeZstdCompressor {
   push(input: Buffer): Buffer;
+  pushAsync(input: Buffer): Promise<Buffer>;
   end(): Buffer;
+  endAsync(): Promise<Buffer>;
 }
 
 export interface NativeZstdDecompressor {

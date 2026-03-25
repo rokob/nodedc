@@ -15,4 +15,4 @@ Current benchmarks:
   highlights prepared-dictionary reuse versus the built-in stream API
 - `npm run bench:zstd-stream-layers`
   compares built-in stream piping, `nodedc` stream piping, and direct native
-  `compressInto` calls to isolate where stream overhead is coming from
+  async compressor calls to isolate where stream overhead is coming from

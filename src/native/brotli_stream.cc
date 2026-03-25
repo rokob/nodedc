@@ -7,17 +7,76 @@
 #include "../../vendor/brotli/c/enc/static_init.h"
 
 #include <cstdint>
+#include <stdexcept>
 #include <vector>
 
 namespace nodedc {
 
 Napi::FunctionReference BrotliCompressor::constructor_;
 
+namespace {
+
+Napi::Buffer<std::uint8_t> ToNodeBuffer(Napi::Env env, std::vector<std::uint8_t>&& output) {
+  if (output.empty()) {
+    return Napi::Buffer<std::uint8_t>::Copy(env, nullptr, 0);
+  }
+
+  return Napi::Buffer<std::uint8_t>::Copy(env, output.data(), output.size());
+}
+
+Napi::Promise MakeResolvedBufferPromise(Napi::Env env, std::vector<std::uint8_t>&& output) {
+  auto deferred = Napi::Promise::Deferred::New(env);
+  deferred.Resolve(ToNodeBuffer(env, std::move(output)));
+  return deferred.Promise();
+}
+
+class CompressWorker final : public Napi::AsyncWorker {
+ public:
+  CompressWorker(Napi::Env env, BrotliCompressor* compressor, Napi::Object owner,
+                 std::vector<std::uint8_t>&& input, bool finish)
+      : Napi::AsyncWorker(env),
+        deferred_(Napi::Promise::Deferred::New(env)),
+        compressor_(compressor),
+        owner_ref_(Napi::Persistent(owner)),
+        input_(std::move(input)),
+        finish_(finish) {
+    owner_ref_.SuppressDestruct();
+  }
+
+  ~CompressWorker() override { owner_ref_.Reset(); }
+
+  Napi::Promise GetPromise() const { return deferred_.Promise(); }
+
+  void Execute() override {
+    try {
+      output_ = compressor_->Process(input_.data(), input_.size(), finish_);
+    } catch (const std::exception& error) {
+      SetError(error.what());
+    }
+  }
+
+  void OnOK() override { deferred_.Resolve(ToNodeBuffer(Env(), std::move(output_))); }
+
+  void OnError(const Napi::Error& error) override { deferred_.Reject(error.Value()); }
+
+ private:
+  Napi::Promise::Deferred deferred_;
+  BrotliCompressor* compressor_;
+  Napi::ObjectReference owner_ref_;
+  std::vector<std::uint8_t> input_;
+  std::vector<std::uint8_t> output_;
+  bool finish_;
+};
+
+}  // namespace
+
 Napi::Function BrotliCompressor::Init(Napi::Env env) {
   Napi::Function ctor = DefineClass(env, "BrotliCompressor",
                                     {
                                         InstanceMethod("push", &BrotliCompressor::Push),
+                                        InstanceMethod("pushAsync", &BrotliCompressor::PushAsync),
                                         InstanceMethod("end", &BrotliCompressor::End),
+                                        InstanceMethod("endAsync", &BrotliCompressor::EndAsync),
                                     });
 
   constructor_ = Napi::Persistent(ctor);
@@ -84,7 +143,22 @@ Napi::Value BrotliCompressor::Push(const Napi::CallbackInfo& info) {
   }
 
   const auto input = BrotliPreparedDictionary::AsByteVector(info[0], "input");
-  return Process(env, input.data(), input.size(), false);
+  return ToNodeBuffer(env, Process(input.data(), input.size(), false));
+}
+
+Napi::Value BrotliCompressor::PushAsync(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (ended_) {
+    throw Napi::Error::New(env, "BrotliCompressor has already been ended.");
+  }
+  if (info.Length() != 1 || !info[0].IsBuffer()) {
+    throw Napi::TypeError::New(env, "pushAsync expects a Buffer.");
+  }
+
+  auto input = BrotliPreparedDictionary::AsByteVector(info[0], "input");
+  auto* worker = new CompressWorker(env, this, Value(), std::move(input), false);
+  worker->Queue();
+  return worker->GetPromise();
 }
 
 Napi::Value BrotliCompressor::End(const Napi::CallbackInfo& info) {
@@ -98,11 +172,28 @@ Napi::Value BrotliCompressor::End(const Napi::CallbackInfo& info) {
   }
 
   ended_ = true;
-  return Process(env, nullptr, 0, true);
+  return ToNodeBuffer(env, Process(nullptr, 0, true));
 }
 
-Napi::Buffer<std::uint8_t> BrotliCompressor::Process(Napi::Env env, const std::uint8_t* data,
-                                                     std::size_t size, bool finish) {
+Napi::Value BrotliCompressor::EndAsync(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (ended_) {
+    return MakeResolvedBufferPromise(env, std::vector<std::uint8_t>());
+  }
+
+  if (info.Length() != 0) {
+    throw Napi::TypeError::New(env, "endAsync does not accept arguments.");
+  }
+
+  ended_ = true;
+  auto* worker = new CompressWorker(env, this, Value(), std::vector<std::uint8_t>(), true);
+  worker->Queue();
+  return worker->GetPromise();
+}
+
+std::vector<std::uint8_t> BrotliCompressor::Process(const std::uint8_t* data, std::size_t size,
+                                                    bool finish) {
+  std::lock_guard<std::mutex> lock(mutex_);
   size_t available_in = size;
   const uint8_t* next_in = data;
   std::vector<std::uint8_t> output;
@@ -125,7 +216,7 @@ Napi::Buffer<std::uint8_t> BrotliCompressor::Process(Napi::Env env, const std::u
     if (!BrotliEncoderCompressStream(state_,
                                      finish ? BROTLI_OPERATION_FINISH : BROTLI_OPERATION_PROCESS,
                                      &available_in, &next_in, &available_out, &next_out, nullptr)) {
-      throw Napi::Error::New(env, "Brotli streaming compression failed.");
+      throw std::runtime_error("Brotli streaming compression failed.");
     }
 
     if (!finish && available_in == 0 && !BrotliEncoderHasMoreOutput(state_)) {
@@ -133,7 +224,7 @@ Napi::Buffer<std::uint8_t> BrotliCompressor::Process(Napi::Env env, const std::u
     }
   }
 
-  return Napi::Buffer<std::uint8_t>::Copy(env, output.data(), output.size());
+  return output;
 }
 
 }  // namespace nodedc

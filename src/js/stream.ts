@@ -28,23 +28,19 @@ class NativeCompressorTransform extends Transform {
     _encoding: BufferEncoding,
     callback: (error?: Error | null, data?: Buffer) => void,
   ): void {
-    try {
-      const output = this.nativeStream.push(chunk);
-      if (!this.#headerSent && this.header) {
-        this.#headerSent = true;
-        callback(null, Buffer.concat([this.header, output]));
-        return;
-      }
-
-      callback(null, output.length > 0 ? output : undefined);
-    } catch (error) {
-      callback(error instanceof Error ? error : new Error(String(error)));
-    }
+    void this.#handleOutput(this.nativeStream.pushAsync(chunk), callback);
   }
 
   override _flush(callback: (error?: Error | null, data?: Buffer) => void): void {
+    void this.#handleOutput(this.nativeStream.endAsync(), callback);
+  }
+
+  async #handleOutput(
+    outputPromise: Promise<Buffer>,
+    callback: (error?: Error | null, data?: Buffer) => void,
+  ): Promise<void> {
     try {
-      const output = this.nativeStream.end();
+      const output = await outputPromise;
       if (!this.#headerSent && this.header) {
         this.#headerSent = true;
         callback(null, Buffer.concat([this.header, output]));

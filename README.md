@@ -239,6 +239,10 @@ await pipeline(
 );
 ```
 
+Streaming compressors execute compression work asynchronously in the native
+addon so multiple concurrent response streams can make progress without
+blocking the main event loop on compression.
+
 Supported tuning options today:
 
 - Zstandard: `quality`, `checksum`
