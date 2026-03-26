@@ -34,7 +34,7 @@ jobs:
       - run: npm run build:prebuilts
       - run: npm run verify:prebuilts
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: prebuild-${{ matrix.label }}
           path: prebuilds/
@@ -57,7 +57,7 @@ jobs:
 
       - run: tar -czf nodedc-prebuilds-${{ github.event.release.tag_name || github.sha }}.tar.gz prebuilds
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: prebuilds-bundle
           path: nodedc-prebuilds-${{ github.event.release.tag_name || github.sha }}.tar.gz
