@@ -1,8 +1,7 @@
 export { PreparedDictionary } from './dictionary.js';
 export { DictionaryStore } from './store.js';
-export { createCompressStream, createDecompressStream } from './stream.js';
 export { hasBrotliTrainer, trainBrotliDictionary, trainZstdDictionary } from './training.js';
-export { contentEncodingFor, getTransportInfo } from './transport.js';
+export { getTransportInfo } from './transport.js';
 export {
   formatAvailableDictionaryHeader,
   negotiateCompressionFromStore,
@@ -17,6 +16,7 @@ export type {
   CompressOptions,
   DecompressOptions,
   FileCompression,
+  HttpNegotiationResult,
   NegotiationInput,
   NegotiationOptions,
   NegotiationResult,

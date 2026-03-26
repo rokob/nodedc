@@ -38,7 +38,6 @@ test('negotiateCompression prefers transport when the dictionary hash is availab
   assert.deepEqual(result, {
     dictionary,
     contentEncoding: 'dcz',
-    transport: 'transport',
   });
 });
 
@@ -57,7 +56,6 @@ test('negotiateCompression can restrict negotiation to a single algorithm family
   assert.deepEqual(result, {
     dictionary: zstd,
     contentEncoding: 'dcz',
-    transport: 'transport',
   });
 });
 
@@ -75,7 +73,6 @@ test('negotiateCompression prefers zstd before brotli by default', () => {
   assert.deepEqual(result, {
     dictionary: zstd,
     contentEncoding: 'dcz',
-    transport: 'transport',
   });
 });
 
@@ -94,7 +91,6 @@ test('negotiateCompression can prefer brotli before zstd', () => {
   assert.deepEqual(result, {
     dictionary: brotli,
     contentEncoding: 'dcb',
-    transport: 'transport',
   });
 });
 
@@ -144,7 +140,6 @@ test('negotiateCompressionFromStore does direct transport lookup by dictionary h
   assert.deepEqual(result, {
     dictionary: zstd,
     contentEncoding: 'dcz',
-    transport: 'transport',
   });
 });
 
@@ -166,7 +161,6 @@ test('negotiateCompressionFromStore prefers zstd before brotli by default', () =
   assert.deepEqual(result, {
     dictionary: zstd,
     contentEncoding: 'dcz',
-    transport: 'transport',
   });
 });
 
@@ -189,7 +183,6 @@ test('negotiateCompressionFromStore can prefer brotli before zstd', () => {
   assert.deepEqual(result, {
     dictionary: brotli,
     contentEncoding: 'dcb',
-    transport: 'transport',
   });
 });
 
@@ -257,7 +250,6 @@ test('negotiateCompressionFromStore picks the matching brotli dictionary from mu
   assert.deepEqual(result, {
     dictionary: brotliC,
     contentEncoding: 'dcb',
-    transport: 'transport',
   });
 });
 
@@ -280,7 +272,6 @@ test('negotiateCompressionFromStore can restrict negotiation to brotli or zstd',
   assert.deepEqual(zstdResult, {
     dictionary: zstd,
     contentEncoding: 'dcz',
-    transport: 'transport',
   });
 
   const brotliResult = negotiateCompressionFromStore(
@@ -295,6 +286,5 @@ test('negotiateCompressionFromStore can restrict negotiation to brotli or zstd',
   assert.deepEqual(brotliResult, {
     dictionary: brotli,
     contentEncoding: 'dcb',
-    transport: 'transport',
   });
 });

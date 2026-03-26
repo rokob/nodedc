@@ -1,14 +1,13 @@
 import {
-  contentEncodingFor,
   hashBytesToStructuredField,
   structuredFieldToHashBytes,
 } from './transport.js';
 import { DictionaryStore } from './store.js';
 
 import type {
+  HttpNegotiationResult,
   NegotiationInput,
   NegotiationOptions,
-  NegotiationResult,
   PreparedDictionaryShape,
 } from './types.js';
 
@@ -49,7 +48,7 @@ function getNegotiatedAlgorithms(options: NegotiationOptions): readonly ('brotli
 }
 
 function getTransportEncoding(algorithm: 'brotli' | 'zstd'): 'dcb' | 'dcz' {
-  return contentEncodingFor(algorithm, 'transport') as 'dcb' | 'dcz';
+  return algorithm === 'brotli' ? 'dcb' : 'dcz';
 }
 
 export function parseAvailableDictionaryHeader(value: string | null | undefined): string | null {
@@ -76,7 +75,7 @@ export function negotiateCompression<TDictionary extends PreparedDictionaryShape
   input: NegotiationInput,
   candidates: Iterable<TDictionary>,
   options: NegotiationOptions = {},
-): NegotiationResult<TDictionary> | null {
+): HttpNegotiationResult<TDictionary> | null {
   const acceptedEncodings = parseAcceptEncodingHeader(input.acceptEncoding);
   const availableDictionary = parseAvailableDictionaryHeader(input.availableDictionary);
   const candidateList = Array.from(candidates);
@@ -89,7 +88,6 @@ export function negotiateCompression<TDictionary extends PreparedDictionaryShape
           return {
             dictionary,
             contentEncoding: transportEncoding,
-            transport: 'transport',
           };
         }
       }
@@ -103,7 +101,7 @@ export function negotiateCompressionFromStore(
   input: NegotiationInput,
   store: DictionaryStore,
   options: NegotiationOptions = {},
-): NegotiationResult | null {
+): HttpNegotiationResult | null {
   const acceptedEncodings = parseAcceptEncodingHeader(input.acceptEncoding);
   const availableDictionary = parseAvailableDictionaryHeader(input.availableDictionary);
   const algorithms = getNegotiatedAlgorithms(options);
@@ -120,7 +118,6 @@ export function negotiateCompressionFromStore(
         return {
           dictionary,
           contentEncoding: transportEncoding,
-          transport: 'transport',
         };
       }
     }

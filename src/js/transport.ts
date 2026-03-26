@@ -10,14 +10,6 @@ export interface TransportInfo {
 const DCB_MAGIC = Buffer.from([0xff, 0x44, 0x43, 0x42]);
 const DCZ_MAGIC = Buffer.from([0x5e, 0x2a, 0x4d, 0x18, 0x20, 0x00, 0x00, 0x00]);
 
-export function contentEncodingFor(algorithm: Algorithm, transport: 'raw' | 'transport'): string {
-  if (transport === 'raw') {
-    return algorithm === 'brotli' ? 'br' : 'zstd';
-  }
-
-  return algorithm === 'brotli' ? 'dcb' : 'dcz';
-}
-
 export function hashHexToBytes(hash: string): Buffer {
   if (!/^[0-9a-f]{64}$/i.test(hash)) {
     throw new TypeError(`Expected a 64-character SHA-256 hex hash, got: ${hash}`);

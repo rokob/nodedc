@@ -22,7 +22,6 @@ export interface CompressOptions {
   quality?: number;
   windowBits?: number;
   checksum?: boolean;
-  transport?: TransportMode;
   params?: Record<number, number>;
 }
 
@@ -62,8 +61,10 @@ export interface PreparedDictionaryShape {
   readonly size: number;
   readonly metadata: Readonly<Record<string, string>>;
   createCompressStream(options?: CompressOptions): Transform;
+  createTransportCompressStream(options?: CompressOptions): Transform;
   createDecompressStream(options?: DecompressOptions): Transform;
   compress(input: Buffer | Uint8Array, options?: CompressOptions): Promise<Buffer>;
+  compressTransport(input: Buffer | Uint8Array, options?: CompressOptions): Promise<Buffer>;
   decompress(input: Buffer | Uint8Array, options?: DecompressOptions): Promise<Buffer>;
 }
 
@@ -77,10 +78,13 @@ export interface NegotiationOptions {
   preferredAlgorithm?: Algorithm;
 }
 
-export interface NegotiationResult<
+export interface HttpNegotiationResult<
   TDictionary extends PreparedDictionaryShape = PreparedDictionaryShape,
 > {
   dictionary: TDictionary;
-  contentEncoding: 'br' | 'zstd' | 'dcb' | 'dcz';
-  transport: TransportMode;
+  contentEncoding: 'dcb' | 'dcz';
 }
+
+export type NegotiationResult<
+  TDictionary extends PreparedDictionaryShape = PreparedDictionaryShape,
+> = HttpNegotiationResult<TDictionary>;
