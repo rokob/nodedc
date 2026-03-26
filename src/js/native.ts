@@ -26,6 +26,9 @@ export interface NativeBinding {
     dictionary: NativeBrotliPreparedDictionary,
     options?: NativeBrotliCompressOptions,
   ) => NativeBrotliCompressor;
+  readonly BrotliDecompressor: new (
+    dictionary: NativeBrotliPreparedDictionary,
+  ) => NativeBrotliDecompressor;
   readonly ZstdPreparedDictionary: new (bytes: Buffer) => NativeZstdPreparedDictionary;
   readonly ZstdCompressor: new (
     dictionary: NativeZstdPreparedDictionary,
@@ -60,8 +63,8 @@ export interface NativeTrainBinding {
 export interface NativeBrotliPreparedDictionary {
   readonly algorithm: 'brotli';
   readonly size: number;
-  compressSync(input: Buffer, options?: NativeBrotliCompressOptions): Buffer;
-  decompressSync(input: Buffer): Buffer;
+  compress(input: Buffer, options?: NativeBrotliCompressOptions): Promise<Buffer>;
+  decompress(input: Buffer): Promise<Buffer>;
 }
 
 export interface NativeBrotliCompressOptions {
@@ -76,11 +79,16 @@ export interface NativeBrotliCompressor {
   endAsync(): Promise<Buffer>;
 }
 
+export interface NativeBrotliDecompressor {
+  push(input: Buffer): Buffer;
+  end(): void;
+}
+
 export interface NativeZstdPreparedDictionary {
   readonly algorithm: 'zstd';
   readonly size: number;
-  compressSync(input: Buffer, options?: NativeZstdCompressOptions): Buffer;
-  decompressSync(input: Buffer): Buffer;
+  compress(input: Buffer, options?: NativeZstdCompressOptions): Promise<Buffer>;
+  decompress(input: Buffer): Promise<Buffer>;
 }
 
 export interface NativeZstdCompressOptions {

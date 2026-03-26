@@ -36,6 +36,90 @@ struct DCtxDeleter {
 using UniqueCCtx = std::unique_ptr<ZSTD_CCtx, CCtxDeleter>;
 using UniqueDCtx = std::unique_ptr<ZSTD_DCtx, DCtxDeleter>;
 
+Napi::Buffer<std::uint8_t> ToNodeBuffer(Napi::Env env, std::vector<std::uint8_t>&& output) {
+  if (output.empty()) {
+    return Napi::Buffer<std::uint8_t>::Copy(env, nullptr, 0);
+  }
+
+  return Napi::Buffer<std::uint8_t>::Copy(env, output.data(), output.size());
+}
+
+class CompressWorker final : public Napi::AsyncWorker {
+ public:
+  CompressWorker(Napi::Env env, PreparedDictionary* dictionary, Napi::Object owner,
+                 std::vector<std::uint8_t>&& input, int compression_level, bool checksum)
+      : Napi::AsyncWorker(env),
+        deferred_(Napi::Promise::Deferred::New(env)),
+        dictionary_(dictionary),
+        owner_ref_(Napi::Persistent(owner)),
+        input_(std::move(input)),
+        compression_level_(compression_level),
+        checksum_(checksum) {
+    owner_ref_.SuppressDestruct();
+  }
+
+  ~CompressWorker() override { owner_ref_.Reset(); }
+
+  Napi::Promise GetPromise() const { return deferred_.Promise(); }
+
+  void Execute() override {
+    try {
+      output_ = dictionary_->CompressBytes(input_, compression_level_, checksum_);
+    } catch (const std::exception& error) {
+      SetError(error.what());
+    }
+  }
+
+  void OnOK() override { deferred_.Resolve(ToNodeBuffer(Env(), std::move(output_))); }
+
+  void OnError(const Napi::Error& error) override { deferred_.Reject(error.Value()); }
+
+ private:
+  Napi::Promise::Deferred deferred_;
+  PreparedDictionary* dictionary_;
+  Napi::ObjectReference owner_ref_;
+  std::vector<std::uint8_t> input_;
+  int compression_level_;
+  bool checksum_;
+  std::vector<std::uint8_t> output_;
+};
+
+class DecompressWorker final : public Napi::AsyncWorker {
+ public:
+  DecompressWorker(Napi::Env env, PreparedDictionary* dictionary, Napi::Object owner,
+                   std::vector<std::uint8_t>&& input)
+      : Napi::AsyncWorker(env),
+        deferred_(Napi::Promise::Deferred::New(env)),
+        dictionary_(dictionary),
+        owner_ref_(Napi::Persistent(owner)),
+        input_(std::move(input)) {
+    owner_ref_.SuppressDestruct();
+  }
+
+  ~DecompressWorker() override { owner_ref_.Reset(); }
+
+  Napi::Promise GetPromise() const { return deferred_.Promise(); }
+
+  void Execute() override {
+    try {
+      output_ = dictionary_->DecompressBytes(input_);
+    } catch (const std::exception& error) {
+      SetError(error.what());
+    }
+  }
+
+  void OnOK() override { deferred_.Resolve(ToNodeBuffer(Env(), std::move(output_))); }
+
+  void OnError(const Napi::Error& error) override { deferred_.Reject(error.Value()); }
+
+ private:
+  Napi::Promise::Deferred deferred_;
+  PreparedDictionary* dictionary_;
+  Napi::ObjectReference owner_ref_;
+  std::vector<std::uint8_t> input_;
+  std::vector<std::uint8_t> output_;
+};
+
 }  // namespace
 
 Napi::Function PreparedDictionary::Init(Napi::Env env) {
@@ -45,8 +129,8 @@ Napi::Function PreparedDictionary::Init(Napi::Env env) {
                       StaticMethod("className", &PreparedDictionary::GetClassName),
                       InstanceAccessor("algorithm", &PreparedDictionary::GetAlgorithm, nullptr),
                       InstanceAccessor("size", &PreparedDictionary::GetSize, nullptr),
-                      InstanceMethod("compressSync", &PreparedDictionary::CompressSync),
-                      InstanceMethod("decompressSync", &PreparedDictionary::DecompressSync),
+                      InstanceMethod("compress", &PreparedDictionary::Compress),
+                      InstanceMethod("decompress", &PreparedDictionary::Decompress),
                   });
 
   constructor_ = Napi::Persistent(ctor);
@@ -98,6 +182,7 @@ Napi::Value PreparedDictionary::GetSize(const Napi::CallbackInfo& info) {
 }
 
 const ZSTD_CDict_s* PreparedDictionary::GetOrCreateCDict(int compression_level) {
+  std::lock_guard<std::mutex> lock(cdict_mutex_);
   auto found = cdicts_.find(compression_level);
   if (found != cdicts_.end()) {
     return found->second;
@@ -158,65 +243,89 @@ void PreparedDictionary::ThrowZstdError(Napi::Env env, size_t code, const char* 
     return;
   }
 
-  throw Napi::Error::New(env, std::string(context) + ": " + ZSTD_getErrorName(code));
+  throw Napi::Error::New(env, ZstdErrorMessage(code, context));
 }
 
-Napi::Value PreparedDictionary::CompressSync(const Napi::CallbackInfo& info) {
+std::string PreparedDictionary::ZstdErrorMessage(size_t code, const char* context) {
+  return std::string(context) + ": " + ZSTD_getErrorName(code);
+}
+
+Napi::Value PreparedDictionary::Compress(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
 
   if (info.Length() < 1 || !info[0].IsBuffer()) {
-    throw Napi::TypeError::New(env, "compressSync expects an input Buffer.");
+    throw Napi::TypeError::New(env, "compress expects an input Buffer.");
   }
 
+  auto input = AsByteVector(info[0], "input");
   Napi::Object options =
       info.Length() > 1 && info[1].IsObject() ? info[1].As<Napi::Object>() : Napi::Object::New(env);
-  const std::vector<std::uint8_t> input = AsByteVector(info[0], "input");
-
   const int compression_level = GetCompressionLevel(options);
   const bool checksum = GetChecksumFlag(options);
-  const ZSTD_CDict* cdict = nullptr;
+  auto* worker =
+      new CompressWorker(env, this, Value(), std::move(input), compression_level, checksum);
+  worker->Queue();
+  return worker->GetPromise();
+}
 
-  try {
-    cdict = GetOrCreateCDict(compression_level);
-  } catch (const std::exception& error) {
-    throw Napi::Error::New(env, error.what());
-  }
+std::vector<std::uint8_t> PreparedDictionary::CompressBytes(const std::vector<std::uint8_t>& input,
+                                                            int compression_level,
+                                                            bool checksum) {
+  const ZSTD_CDict* cdict = GetOrCreateCDict(compression_level);
 
   UniqueCCtx cctx(ZSTD_createCCtx());
   if (!cctx) {
-    throw Napi::Error::New(env, "Failed to create the Zstd compression context.");
+    throw std::runtime_error("Failed to create the Zstd compression context.");
   }
 
-  ThrowZstdError(env, ZSTD_CCtx_refCDict(cctx.get(), cdict),
-                 "Failed to attach the Zstd dictionary");
-  ThrowZstdError(env, ZSTD_CCtx_setParameter(cctx.get(), ZSTD_c_contentSizeFlag, 1),
-                 "Failed to set the Zstd content size flag");
-  ThrowZstdError(env, ZSTD_CCtx_setParameter(cctx.get(), ZSTD_c_checksumFlag, checksum ? 1 : 0),
-                 "Failed to set the Zstd checksum flag");
+  size_t code = ZSTD_CCtx_refCDict(cctx.get(), cdict);
+  if (ZSTD_isError(code)) {
+    throw std::runtime_error(ZstdErrorMessage(code, "Failed to attach the Zstd dictionary"));
+  }
+  code = ZSTD_CCtx_setParameter(cctx.get(), ZSTD_c_contentSizeFlag, 1);
+  if (ZSTD_isError(code)) {
+    throw std::runtime_error(ZstdErrorMessage(code, "Failed to set the Zstd content size flag"));
+  }
+  code = ZSTD_CCtx_setParameter(cctx.get(), ZSTD_c_checksumFlag, checksum ? 1 : 0);
+  if (ZSTD_isError(code)) {
+    throw std::runtime_error(ZstdErrorMessage(code, "Failed to set the Zstd checksum flag"));
+  }
 
   std::vector<std::uint8_t> output(ZSTD_compressBound(input.size()));
   const size_t written =
       ZSTD_compress2(cctx.get(), output.data(), output.size(), input.data(), input.size());
-  ThrowZstdError(env, written, "Zstd compression failed");
+  if (ZSTD_isError(written)) {
+    throw std::runtime_error(ZstdErrorMessage(written, "Zstd compression failed"));
+  }
 
-  return Napi::Buffer<std::uint8_t>::Copy(env, output.data(), written);
+  output.resize(written);
+  return output;
 }
 
-Napi::Value PreparedDictionary::DecompressSync(const Napi::CallbackInfo& info) {
+Napi::Value PreparedDictionary::Decompress(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
 
   if (info.Length() < 1 || !info[0].IsBuffer()) {
-    throw Napi::TypeError::New(env, "decompressSync expects an input Buffer.");
+    throw Napi::TypeError::New(env, "decompress expects an input Buffer.");
   }
 
-  const std::vector<std::uint8_t> input = AsByteVector(info[0], "input");
+  auto input = AsByteVector(info[0], "input");
+  auto* worker = new DecompressWorker(env, this, Value(), std::move(input));
+  worker->Queue();
+  return worker->GetPromise();
+}
+
+std::vector<std::uint8_t> PreparedDictionary::DecompressBytes(
+    const std::vector<std::uint8_t>& input) const {
   UniqueDCtx dctx(ZSTD_createDCtx());
   if (!dctx) {
-    throw Napi::Error::New(env, "Failed to create the Zstd decompression context.");
+    throw std::runtime_error("Failed to create the Zstd decompression context.");
   }
 
-  ThrowZstdError(env, ZSTD_DCtx_refDDict(dctx.get(), ddict_),
-                 "Failed to attach the Zstd dictionary");
+  size_t code = ZSTD_DCtx_refDDict(dctx.get(), ddict_);
+  if (ZSTD_isError(code)) {
+    throw std::runtime_error(ZstdErrorMessage(code, "Failed to attach the Zstd dictionary"));
+  }
 
   ZSTD_inBuffer in = {input.data(), input.size(), 0};
   std::vector<std::uint8_t> output;
@@ -229,7 +338,9 @@ Napi::Value PreparedDictionary::DecompressSync(const Napi::CallbackInfo& info) {
 
     ZSTD_outBuffer out = {output.data() + previous_size, kOutputChunkSize, 0};
     const size_t remaining = ZSTD_decompressStream(dctx.get(), &out, &in);
-    ThrowZstdError(env, remaining, "Zstd decompression failed");
+    if (ZSTD_isError(remaining)) {
+      throw std::runtime_error(ZstdErrorMessage(remaining, "Zstd decompression failed"));
+    }
 
     output.resize(previous_size + out.pos);
 
@@ -238,11 +349,11 @@ Napi::Value PreparedDictionary::DecompressSync(const Napi::CallbackInfo& info) {
     }
 
     if (in.pos == previous_position && out.pos == 0) {
-      throw Napi::Error::New(env, "Zstd decompression made no progress.");
+      throw std::runtime_error("Zstd decompression made no progress.");
     }
   }
 
-  return Napi::Buffer<std::uint8_t>::Copy(env, output.data(), output.size());
+  return output;
 }
 
 }  // namespace nodedc

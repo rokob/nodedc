@@ -7,6 +7,7 @@ import { getTransportInfo } from './transport.js';
 import type { CompressOptions, DecompressOptions } from './types.js';
 import type {
   NativeBrotliCompressor,
+  NativeBrotliDecompressor,
   NativeBrotliPreparedDictionary,
   NativeZstdCompressor,
   NativeZstdDecompressor,
@@ -59,7 +60,7 @@ class NativeDecompressorTransform extends Transform {
   #validated = false;
 
   constructor(
-    private readonly nativeStream: NativeZstdDecompressor,
+    private readonly nativeStream: NativeBrotliDecompressor | NativeZstdDecompressor,
     private readonly header?: Buffer,
     private readonly contentEncoding?: 'dcb' | 'dcz',
   ) {
@@ -117,13 +118,33 @@ class NativeDecompressorTransform extends Transform {
 
 export function createCompressStream(
   nativeDictionary: NativeBrotliPreparedDictionary | NativeZstdPreparedDictionary,
+  algorithm: 'brotli' | 'zstd',
+  options: CompressOptions = {},
+): Transform {
+  return createNativeCompressStream(nativeDictionary, algorithm, options);
+}
+
+export function createTransportCompressStream(
+  nativeDictionary: NativeBrotliPreparedDictionary | NativeZstdPreparedDictionary,
   hash: string,
   algorithm: 'brotli' | 'zstd',
   options: CompressOptions = {},
 ): Transform {
+  return createNativeCompressStream(
+    nativeDictionary,
+    algorithm,
+    options,
+    getTransportInfo(algorithm, hash).headerBytes,
+  );
+}
+
+function createNativeCompressStream(
+  nativeDictionary: NativeBrotliPreparedDictionary | NativeZstdPreparedDictionary,
+  algorithm: 'brotli' | 'zstd',
+  options: CompressOptions,
+  header?: Buffer,
+): Transform {
   const binding = loadNativeBinding();
-  const header =
-    options.transport === 'transport' ? getTransportInfo(algorithm, hash).headerBytes : undefined;
   if (algorithm === 'zstd') {
     return new NativeCompressorTransform(
       new binding.ZstdCompressor(nativeDictionary as NativeZstdPreparedDictionary, options),
@@ -144,22 +165,20 @@ export function createCompressStream(
 }
 
 export function createDecompressStream(
-  nativeDictionary: NativeZstdPreparedDictionary,
+  nativeDictionary: NativeBrotliPreparedDictionary | NativeZstdPreparedDictionary,
   hash: string,
   algorithm: 'brotli' | 'zstd',
   options: DecompressOptions = {},
 ): Transform {
-  if (algorithm !== 'zstd') {
-    throw new NotImplementedPhaseError(
-      `Streaming decompression for ${algorithm} is not implemented yet.`,
-    );
-  }
-
   const binding = loadNativeBinding();
   const transport =
     options.transport === 'transport' ? getTransportInfo(algorithm, hash) : undefined;
+  const nativeStream =
+    algorithm === 'brotli'
+      ? new binding.BrotliDecompressor(nativeDictionary as NativeBrotliPreparedDictionary)
+      : new binding.ZstdDecompressor(nativeDictionary as NativeZstdPreparedDictionary);
   return new NativeDecompressorTransform(
-    new binding.ZstdDecompressor(nativeDictionary),
+    nativeStream,
     transport?.headerBytes,
     transport?.contentEncoding,
   );

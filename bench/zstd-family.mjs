@@ -1,4 +1,5 @@
-import { constants, zstdCompressSync } from 'node:zlib';
+import { promisify } from 'node:util';
+import { constants, zstdCompress, zstdCompressSync } from 'node:zlib';
 
 import { PreparedDictionary, loadNativeBinding, trainZstdDictionary } from '../dist/js/index.js';
 
@@ -6,6 +7,7 @@ const COUNTS = [1_000, 10_000, 100_000];
 const QUALITY = 6;
 const TRAINING_SAMPLE_COUNT = 512;
 const DICT_SIZE = 8_192;
+const zstdCompressAsync = promisify(zstdCompress);
 
 main().catch((error) => {
   console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
@@ -48,31 +50,29 @@ async function main() {
   console.log('');
 
   const warmupPayloads = makePayloadFamily(512);
-  await warmup('built-in one-shot', warmupPayloads, (payload) =>
-    zstdCompressSync(payload, builtinOptions),
+  await warmup('built-in one-shot async', warmupPayloads, (payload) =>
+    zstdCompressAsync(payload, builtinOptions),
   );
   await warmup('nodedc public api', warmupPayloads, (payload) =>
     prepared.compress(payload, nativeOptions),
   );
   await warmup('nodedc prepared native', warmupPayloads, (payload) =>
-    nativePrepared.compressSync(payload, nativeOptions),
+    nativePrepared.compress(payload, nativeOptions),
   );
 
   for (const count of COUNTS) {
     const payloads = makePayloadFamily(count);
     console.log(`responses=${count}`);
 
-    const builtIn = await benchmark(payloads, (payload) =>
-      zstdCompressSync(payload, builtinOptions),
-    );
+    const builtIn = await benchmark(payloads, (payload) => zstdCompressAsync(payload, builtinOptions));
     const publicApi = await benchmark(payloads, (payload) =>
       prepared.compress(payload, nativeOptions),
     );
     const nativePreparedResult = await benchmark(payloads, (payload) =>
-      nativePrepared.compressSync(payload, nativeOptions),
+      nativePrepared.compress(payload, nativeOptions),
     );
 
-    printRow('built-in one-shot', count, builtIn);
+    printRow('built-in one-shot async', count, builtIn);
     printRow('nodedc public api', count, publicApi);
     printRow('nodedc prepared native', count, nativePreparedResult);
     console.log('');

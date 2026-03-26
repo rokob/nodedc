@@ -6,9 +6,12 @@ import { brotliDecompressSync, zstdDecompressSync } from 'node:zlib';
 
 import { NotImplementedPhaseError } from './errors.js';
 import { loadNativeBinding } from './native.js';
-import { createCompressStream, createDecompressStream } from './stream.js';
 import {
-  contentEncodingFor,
+  createCompressStream,
+  createDecompressStream,
+  createTransportCompressStream,
+} from './stream.js';
+import {
   getTransportInfo,
   prependTransportFrame,
   stripTransportFrame,
@@ -114,11 +117,33 @@ export class PreparedDictionary implements PreparedDictionaryShape {
 
   createCompressStream(_options: CompressOptions = {}): Transform {
     if (this.algorithm === 'zstd') {
-      return createCompressStream(this.#getNativeZstd(), this.hash, this.algorithm, _options);
+      return createCompressStream(this.#getNativeZstd(), this.algorithm, _options);
     }
 
     if (this.algorithm === 'brotli') {
-      return createCompressStream(this.#getNativeBrotli(), this.hash, this.algorithm, _options);
+      return createCompressStream(this.#getNativeBrotli(), this.algorithm, _options);
+    }
+
+    return new UnimplementedDictionaryStream('compress');
+  }
+
+  createTransportCompressStream(_options: CompressOptions = {}): Transform {
+    if (this.algorithm === 'zstd') {
+      return createTransportCompressStream(
+        this.#getNativeZstd(),
+        this.hash,
+        this.algorithm,
+        _options,
+      );
+    }
+
+    if (this.algorithm === 'brotli') {
+      return createTransportCompressStream(
+        this.#getNativeBrotli(),
+        this.hash,
+        this.algorithm,
+        _options,
+      );
     }
 
     return new UnimplementedDictionaryStream('compress');
@@ -127,6 +152,10 @@ export class PreparedDictionary implements PreparedDictionaryShape {
   createDecompressStream(_options: DecompressOptions = {}): Transform {
     if (this.algorithm === 'zstd') {
       return createDecompressStream(this.#getNativeZstd(), this.hash, this.algorithm, _options);
+    }
+
+    if (this.algorithm === 'brotli') {
+      return createDecompressStream(this.#getNativeBrotli(), this.hash, this.algorithm, _options);
     }
 
     return new UnimplementedDictionaryStream('decompress');
@@ -144,10 +173,7 @@ export class PreparedDictionary implements PreparedDictionaryShape {
         nativeOptions.checksum = options.checksum;
       }
 
-      const compressed = this.#getNativeZstd().compressSync(normalizedInput, nativeOptions);
-      return options.transport === 'transport'
-        ? prependTransportFrame(this.algorithm, this.hash, compressed)
-        : compressed;
+      return this.#getNativeZstd().compress(normalizedInput, nativeOptions);
     }
 
     if (this.algorithm === 'brotli') {
@@ -159,10 +185,7 @@ export class PreparedDictionary implements PreparedDictionaryShape {
         nativeOptions.windowBits = options.windowBits;
       }
 
-      const compressed = this.#getNativeBrotli().compressSync(normalizedInput, nativeOptions);
-      return options.transport === 'transport'
-        ? prependTransportFrame(this.algorithm, this.hash, compressed)
-        : compressed;
+      return this.#getNativeBrotli().compress(normalizedInput, nativeOptions);
     }
 
     throw new NotImplementedPhaseError(
@@ -177,11 +200,11 @@ export class PreparedDictionary implements PreparedDictionaryShape {
         : normalizeBytes(input);
 
     if (this.algorithm === 'zstd') {
-      return this.#getNativeZstd().decompressSync(normalizedInput);
+      return this.#getNativeZstd().decompress(normalizedInput);
     }
 
     if (this.algorithm === 'brotli') {
-      return this.#getNativeBrotli().decompressSync(normalizedInput);
+      return this.#getNativeBrotli().decompress(normalizedInput);
     }
 
     throw new NotImplementedPhaseError(
@@ -189,12 +212,23 @@ export class PreparedDictionary implements PreparedDictionaryShape {
     );
   }
 
+  async compressTransport(
+    input: Buffer | Uint8Array,
+    options: CompressOptions = {},
+  ): Promise<Buffer> {
+    return prependTransportFrame(this.algorithm, this.hash, await this.compress(input, options));
+  }
+
   getTransportInfo() {
     return getTransportInfo(this.algorithm, this.hash);
   }
 
   getContentEncoding(transport: 'raw' | 'transport' = 'raw'): string {
-    return contentEncodingFor(this.algorithm, transport);
+    if (transport === 'transport') {
+      return this.algorithm === 'brotli' ? 'dcb' : 'dcz';
+    }
+
+    return this.algorithm === 'brotli' ? 'br' : 'zstd';
   }
 
   #getNativeZstd(): NativeZstdPreparedDictionary {

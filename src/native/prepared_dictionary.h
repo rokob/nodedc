@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -16,7 +17,7 @@ namespace nodedc {
 
 class PreparedDictionary : public Napi::ObjectWrap<PreparedDictionary> {
  public:
-  static Napi::Function Init(Napi::Env env);
+ static Napi::Function Init(Napi::Env env);
   PreparedDictionary(const Napi::CallbackInfo& info);
   ~PreparedDictionary() override;
 
@@ -26,6 +27,10 @@ class PreparedDictionary : public Napi::ObjectWrap<PreparedDictionary> {
   static bool GetChecksumFlag(const Napi::Object& options);
   static std::vector<std::uint8_t> AsByteVector(const Napi::Value& value, const char* name);
   static void ThrowZstdError(Napi::Env env, size_t code, const char* context);
+  static std::string ZstdErrorMessage(size_t code, const char* context);
+  std::vector<std::uint8_t> CompressBytes(const std::vector<std::uint8_t>& input,
+                                          int compression_level, bool checksum);
+  std::vector<std::uint8_t> DecompressBytes(const std::vector<std::uint8_t>& input) const;
 
  private:
   static Napi::FunctionReference constructor_;
@@ -34,11 +39,12 @@ class PreparedDictionary : public Napi::ObjectWrap<PreparedDictionary> {
   Napi::Value GetAlgorithm(const Napi::CallbackInfo& info);
   Napi::Value GetSize(const Napi::CallbackInfo& info);
 
-  Napi::Value CompressSync(const Napi::CallbackInfo& info);
-  Napi::Value DecompressSync(const Napi::CallbackInfo& info);
+  Napi::Value Compress(const Napi::CallbackInfo& info);
+  Napi::Value Decompress(const Napi::CallbackInfo& info);
 
   std::vector<std::uint8_t> bytes_;
   ZSTD_DDict_s* ddict_;
+  mutable std::mutex cdict_mutex_;
   std::unordered_map<int, ZSTD_CDict_s*> cdicts_;
 };
 

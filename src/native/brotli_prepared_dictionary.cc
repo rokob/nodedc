@@ -8,6 +8,8 @@
 #include "../../vendor/brotli/c/enc/static_init.h"
 
 #include <cstdint>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace nodedc {
@@ -18,11 +20,89 @@ namespace {
 
 constexpr std::size_t kOutputChunkSize = 1U << 16;
 
-std::string DecoderErrorMessage(BrotliDecoderState* state, const char* context) {
-  const BrotliDecoderErrorCode code = BrotliDecoderGetErrorCode(state);
-  const char* message = BrotliDecoderErrorString(code);
-  return std::string(context) + ": " + (message ? message : "unknown error");
+Napi::Buffer<std::uint8_t> ToNodeBuffer(Napi::Env env, std::vector<std::uint8_t>&& output) {
+  if (output.empty()) {
+    return Napi::Buffer<std::uint8_t>::Copy(env, nullptr, 0);
+  }
+
+  return Napi::Buffer<std::uint8_t>::Copy(env, output.data(), output.size());
 }
+
+class CompressWorker final : public Napi::AsyncWorker {
+ public:
+  CompressWorker(Napi::Env env, BrotliPreparedDictionary* dictionary, Napi::Object owner,
+                 std::vector<std::uint8_t>&& input, int quality, int window_bits)
+      : Napi::AsyncWorker(env),
+        deferred_(Napi::Promise::Deferred::New(env)),
+        dictionary_(dictionary),
+        owner_ref_(Napi::Persistent(owner)),
+        input_(std::move(input)),
+        quality_(quality),
+        window_bits_(window_bits) {
+    owner_ref_.SuppressDestruct();
+  }
+
+  ~CompressWorker() override { owner_ref_.Reset(); }
+
+  Napi::Promise GetPromise() const { return deferred_.Promise(); }
+
+  void Execute() override {
+    try {
+      output_ = dictionary_->CompressBytes(input_, quality_, window_bits_);
+    } catch (const std::exception& error) {
+      SetError(error.what());
+    }
+  }
+
+  void OnOK() override { deferred_.Resolve(ToNodeBuffer(Env(), std::move(output_))); }
+
+  void OnError(const Napi::Error& error) override { deferred_.Reject(error.Value()); }
+
+ private:
+  Napi::Promise::Deferred deferred_;
+  BrotliPreparedDictionary* dictionary_;
+  Napi::ObjectReference owner_ref_;
+  std::vector<std::uint8_t> input_;
+  int quality_;
+  int window_bits_;
+  std::vector<std::uint8_t> output_;
+};
+
+class DecompressWorker final : public Napi::AsyncWorker {
+ public:
+  DecompressWorker(Napi::Env env, BrotliPreparedDictionary* dictionary, Napi::Object owner,
+                   std::vector<std::uint8_t>&& input)
+      : Napi::AsyncWorker(env),
+        deferred_(Napi::Promise::Deferred::New(env)),
+        dictionary_(dictionary),
+        owner_ref_(Napi::Persistent(owner)),
+        input_(std::move(input)) {
+    owner_ref_.SuppressDestruct();
+  }
+
+  ~DecompressWorker() override { owner_ref_.Reset(); }
+
+  Napi::Promise GetPromise() const { return deferred_.Promise(); }
+
+  void Execute() override {
+    try {
+      output_ = dictionary_->DecompressBytes(input_);
+    } catch (const std::exception& error) {
+      SetError(error.what());
+    }
+  }
+
+  void OnOK() override { deferred_.Resolve(ToNodeBuffer(Env(), std::move(output_))); }
+
+  void OnError(const Napi::Error& error) override { deferred_.Reject(error.Value()); }
+
+ private:
+  Napi::Promise::Deferred deferred_;
+  BrotliPreparedDictionary* dictionary_;
+  Napi::ObjectReference owner_ref_;
+  std::vector<std::uint8_t> input_;
+  std::vector<std::uint8_t> output_;
+};
 
 }  // namespace
 
@@ -32,8 +112,8 @@ Napi::Function BrotliPreparedDictionary::Init(Napi::Env env) {
       {
           InstanceAccessor("algorithm", &BrotliPreparedDictionary::GetAlgorithm, nullptr),
           InstanceAccessor("size", &BrotliPreparedDictionary::GetSize, nullptr),
-          InstanceMethod("compressSync", &BrotliPreparedDictionary::CompressSync),
-          InstanceMethod("decompressSync", &BrotliPreparedDictionary::DecompressSync),
+          InstanceMethod("compress", &BrotliPreparedDictionary::Compress),
+          InstanceMethod("decompress", &BrotliPreparedDictionary::Decompress),
       });
 
   constructor_ = Napi::Persistent(ctor);
@@ -110,10 +190,8 @@ int BrotliPreparedDictionary::GetWindowBits(const Napi::Object& options) {
   return window.As<Napi::Number>().Int32Value();
 }
 
-Napi::Buffer<std::uint8_t> BrotliPreparedDictionary::CollectEncoderOutput(Napi::Env env,
-                                                                          BrotliEncoderState* state,
-                                                                          const std::uint8_t* data,
-                                                                          std::size_t size) {
+std::vector<std::uint8_t> BrotliPreparedDictionary::CollectEncoderOutput(
+    BrotliEncoderState* state, const std::uint8_t* data, std::size_t size) {
   std::vector<std::uint8_t> output;
   size_t available_in = size;
   const uint8_t* next_in = data;
@@ -135,66 +213,86 @@ Napi::Buffer<std::uint8_t> BrotliPreparedDictionary::CollectEncoderOutput(Napi::
     if (!BrotliEncoderCompressStream(
             state, available_in == 0 ? BROTLI_OPERATION_FINISH : BROTLI_OPERATION_PROCESS,
             &available_in, &next_in, &available_out, &next_out, nullptr)) {
-      throw Napi::Error::New(env, "Brotli compression failed.");
+      throw std::runtime_error("Brotli compression failed.");
     }
   }
 
-  return Napi::Buffer<std::uint8_t>::Copy(env, output.data(), output.size());
+  return output;
 }
 
-Napi::Value BrotliPreparedDictionary::CompressSync(const Napi::CallbackInfo& info) {
+std::string BrotliPreparedDictionary::DecoderErrorMessage(BrotliDecoderState* state,
+                                                          const char* context) {
+  const BrotliDecoderErrorCode code = BrotliDecoderGetErrorCode(state);
+  const char* message = BrotliDecoderErrorString(code);
+  return std::string(context) + ": " + (message ? message : "unknown error");
+}
+
+Napi::Value BrotliPreparedDictionary::Compress(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
 
   if (info.Length() < 1 || !info[0].IsBuffer()) {
-    throw Napi::TypeError::New(env, "compressSync expects an input Buffer.");
+    throw Napi::TypeError::New(env, "compress expects an input Buffer.");
   }
 
+  auto input = AsByteVector(info[0], "input");
   Napi::Object options =
       info.Length() > 1 && info[1].IsObject() ? info[1].As<Napi::Object>() : Napi::Object::New(env);
-  const std::vector<std::uint8_t> input = AsByteVector(info[0], "input");
+  const int quality = GetQuality(options);
+  const int window_bits = GetWindowBits(options);
+  auto* worker = new CompressWorker(env, this, Value(), std::move(input), quality, window_bits);
+  worker->Queue();
+  return worker->GetPromise();
+}
 
+std::vector<std::uint8_t> BrotliPreparedDictionary::CompressBytes(
+    const std::vector<std::uint8_t>& input, int quality, int window_bits) const {
   if (!BrotliEncoderEnsureStaticInit()) {
-    throw Napi::Error::New(env, "Failed to initialize Brotli encoder static state.");
+    throw std::runtime_error("Failed to initialize Brotli encoder static state.");
   }
   BrotliEncoderState* state = BrotliEncoderCreateInstance(nullptr, nullptr, nullptr);
   if (state == nullptr) {
-    throw Napi::Error::New(env, "Failed to create the Brotli encoder state.");
+    throw std::runtime_error("Failed to create the Brotli encoder state.");
   }
 
-  const int quality = GetQuality(options);
-  const int window_bits = GetWindowBits(options);
   if (!BrotliEncoderSetParameter(state, BROTLI_PARAM_QUALITY, static_cast<uint32_t>(quality)) ||
       !BrotliEncoderSetParameter(state, BROTLI_PARAM_LGWIN, static_cast<uint32_t>(window_bits)) ||
       !BrotliEncoderAttachPreparedDictionary(state, prepared_)) {
     BrotliEncoderDestroyInstance(state);
-    throw Napi::Error::New(env, "Failed to configure the Brotli encoder state.");
+    throw std::runtime_error("Failed to configure the Brotli encoder state.");
   }
 
-  Napi::Buffer<std::uint8_t> result = CollectEncoderOutput(env, state, input.data(), input.size());
+  std::vector<std::uint8_t> result = CollectEncoderOutput(state, input.data(), input.size());
   BrotliEncoderDestroyInstance(state);
   return result;
 }
 
-Napi::Value BrotliPreparedDictionary::DecompressSync(const Napi::CallbackInfo& info) {
+Napi::Value BrotliPreparedDictionary::Decompress(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
 
   if (info.Length() < 1 || !info[0].IsBuffer()) {
-    throw Napi::TypeError::New(env, "decompressSync expects an input Buffer.");
+    throw Napi::TypeError::New(env, "decompress expects an input Buffer.");
   }
 
-  const std::vector<std::uint8_t> input = AsByteVector(info[0], "input");
+  auto input = AsByteVector(info[0], "input");
+  auto* worker = new DecompressWorker(env, this, Value(), std::move(input));
+  worker->Queue();
+  return worker->GetPromise();
+}
+
+std::vector<std::uint8_t> BrotliPreparedDictionary::DecompressBytes(
+    const std::vector<std::uint8_t>& input) const {
   if (!BrotliDecoderEnsureStaticInit()) {
-    throw Napi::Error::New(env, "Failed to initialize Brotli decoder static state.");
+    throw std::runtime_error("Failed to initialize Brotli decoder static state.");
   }
   BrotliDecoderState* state = BrotliDecoderCreateInstance(nullptr, nullptr, nullptr);
   if (state == nullptr) {
-    throw Napi::Error::New(env, "Failed to create the Brotli decoder state.");
+    throw std::runtime_error("Failed to create the Brotli decoder state.");
   }
 
   if (!BrotliDecoderAttachDictionary(state, BROTLI_SHARED_DICTIONARY_RAW, bytes_.size(),
                                      bytes_.data())) {
     BrotliDecoderDestroyInstance(state);
-    throw Napi::Error::New(env, "Failed to attach the Brotli dictionary.");
+    throw std::runtime_error("Failed to attach the Brotli dictionary.");
   }
 
   size_t available_in = input.size();
@@ -221,18 +319,18 @@ Napi::Value BrotliPreparedDictionary::DecompressSync(const Napi::CallbackInfo& i
     if (result == BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT) {
       if (available_in == 0) {
         BrotliDecoderDestroyInstance(state);
-        throw Napi::Error::New(env, "Incomplete Brotli stream: more input is required.");
+        throw std::runtime_error("Incomplete Brotli stream: more input is required.");
       }
       continue;
     }
 
     const std::string message = DecoderErrorMessage(state, "Brotli decompression failed");
     BrotliDecoderDestroyInstance(state);
-    throw Napi::Error::New(env, message);
+    throw std::runtime_error(message);
   }
 
   BrotliDecoderDestroyInstance(state);
-  return Napi::Buffer<std::uint8_t>::Copy(env, output.data(), output.size());
+  return output;
 }
 
 }  // namespace nodedc

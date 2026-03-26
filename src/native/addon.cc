@@ -23,6 +23,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("getBindingInfo", Napi::Function::New(env, GetBindingInfo));
   exports.Set("BrotliPreparedDictionary", nodedc::BrotliPreparedDictionary::Init(env));
   exports.Set("BrotliCompressor", nodedc::BrotliCompressor::Init(env));
+  exports.Set("BrotliDecompressor", nodedc::BrotliDecompressor::Init(env));
   exports.Set("ZstdPreparedDictionary", nodedc::PreparedDictionary::Init(env));
   exports.Set("ZstdCompressor", nodedc::ZstdCompressor::Init(env));
   exports.Set("ZstdDecompressor", nodedc::ZstdDecompressor::Init(env));

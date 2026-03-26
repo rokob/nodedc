@@ -41,8 +41,8 @@ test('PreparedDictionary one-shot transport framing round-trips for zstd and bro
   const zstdInput = Buffer.from('zstd transport dict :: body');
   const brotliInput = Buffer.from('brotli transport dict :: body');
 
-  const zstdCompressed = await zstd.compress(zstdInput, { transport: 'transport' });
-  const brotliCompressed = await brotli.compress(brotliInput, { transport: 'transport' });
+  const zstdCompressed = await zstd.compressTransport(zstdInput);
+  const brotliCompressed = await brotli.compressTransport(brotliInput);
 
   assert.deepEqual(await zstd.decompress(zstdCompressed, { transport: 'transport' }), zstdInput);
   assert.deepEqual(
@@ -60,7 +60,7 @@ test('PreparedDictionary zstd streaming transport framing round-trips', async ()
   const input = Buffer.from('zstd streaming transport dictionary :: payload payload payload');
   const compressed = await collect(
     Readable.from([input.subarray(0, 10), input.subarray(10)]).pipe(
-      dictionary.createCompressStream({ transport: 'transport', quality: 6 }),
+      dictionary.createTransportCompressStream({ quality: 6 }),
     ),
   );
 
@@ -82,11 +82,15 @@ test('PreparedDictionary brotli streaming transport framing round-trips', async 
   const input = Buffer.from('brotli streaming transport dictionary :: payload payload payload');
   const compressed = await collect(
     Readable.from([input.subarray(0, 9), input.subarray(9)]).pipe(
-      dictionary.createCompressStream({ transport: 'transport', quality: 8, windowBits: 20 }),
+      dictionary.createTransportCompressStream({ quality: 8, windowBits: 20 }),
     ),
   );
 
-  const decompressed = await dictionary.decompress(compressed, { transport: 'transport' });
+  const decompressed = await collect(
+    Readable.from([compressed.subarray(0, 11), compressed.subarray(11)]).pipe(
+      dictionary.createDecompressStream({ transport: 'transport' }),
+    ),
+  );
   assert.deepEqual(decompressed, input);
 });
 
@@ -101,7 +105,7 @@ test('transport decompression rejects mismatched dictionary headers', async () =
   });
   const input = Buffer.from('first transport dict :: body');
 
-  const compressed = await first.compress(input, { transport: 'transport' });
+  const compressed = await first.compressTransport(input);
 
   await assert.rejects(
     () => second.decompress(compressed, { transport: 'transport' }),

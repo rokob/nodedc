@@ -209,9 +209,10 @@ the stream closes.
 
 ## Compressing responses
 
-`transport: 'raw'` means "compress with the prepared dictionary, but do not add
-the RFC 9842 transport header". That can be useful for private protocols or
-non-HTTP uses. It is not something the HTTP negotiation helpers will select.
+`compress()` and `createCompressStream()` produce raw dictionary-compressed
+payloads without the RFC 9842 transport header. That can be useful for private
+protocols or non-HTTP uses. For HTTP transport framing, use
+`compressTransport()` or `createTransportCompressStream()`.
 
 One-shot compression:
 
@@ -220,7 +221,6 @@ const body = Buffer.from(JSON.stringify({ ok: true }));
 
 const compressed = await dictionary.compress(body, {
   quality: 6,
-  transport: 'raw',
 });
 ```
 
@@ -233,7 +233,6 @@ await pipeline(
   sourceStream,
   dictionary.createCompressStream({
     quality: 6,
-    transport: 'raw',
   }),
   response,
 );
@@ -247,7 +246,6 @@ Supported tuning options today:
 
 - Zstandard: `quality`, `checksum`
 - Brotli: `quality`, `windowBits`
-- both: `transport`
 
 ## HTTP request flow
 
@@ -293,9 +291,9 @@ function selectCompression(req, store) {
 
 Otherwise it returns `null`.
 
-Pass `{ algorithm: 'brotli' }` to restrict negotiation to the `dcb` / `br`
-family, `{ algorithm: 'zstd' }` to restrict negotiation to `dcz` / `zstd`, or
-omit the option to let the helper consider either family.
+Pass `{ algorithm: 'brotli' }` to restrict negotiation to `dcb`,
+`{ algorithm: 'zstd' }` to restrict negotiation to `dcz`, or omit the option
+to let the helper consider either transport encoding.
 
 When both families are allowed, negotiation prefers Zstandard first by default.
 Pass `{ preferredAlgorithm: 'brotli' }` if you want Brotli first instead.
@@ -356,9 +354,8 @@ http
 
     createReadStream('./samples/index.html')
       .pipe(
-        match.dictionary.createCompressStream({
+        match.dictionary.createTransportCompressStream({
           quality: 6,
-          transport: match.transport,
         }),
       )
       .pipe(res);
@@ -368,7 +365,8 @@ http
 
 ## Transport mode
 
-Set `transport: 'transport'` to emit RFC 9842 framed payloads:
+Use `compressTransport()` or `createTransportCompressStream()` to emit RFC 9842
+framed payloads:
 
 - Brotli uses `dcb`
 - Zstandard uses `dcz`
@@ -388,8 +386,8 @@ In other words:
 
 `PreparedDictionary.getTransportInfo()` returns the fixed transport header bytes
 and content encoding for a dictionary. Most callers should not need it because
-`compress()` and `createCompressStream()` already prepend the required header in
-transport mode.
+`compressTransport()` and `createTransportCompressStream()` already prepend the
+required header.
 
 ## Development
 
@@ -424,29 +422,38 @@ npm run build
 npm run bench:zstd-family
 ```
 
+Other useful benchmark commands:
+
+```bash
+npm run bench:zstd-stream-layers
+npm run bench:zstd-stream-reuse
+BENCH_TARGET_PAYLOAD_BYTES=200000 BENCH_STREAM_COUNTS=1000 BENCH_CONCURRENCY=32 npm run bench:zstd-stream-reuse
+BENCH_TARGET_PAYLOAD_BYTES=200000 BENCH_STREAM_COUNT=1000 npm run bench:zstd-stream-layers
+```
+
 Example result on an Apple `M1 Max` (`arm64`), macOS `26.1`, Node `v22.20.0`,
 with an `8192` byte trained dictionary and `100000` responses from the same
 payload family:
 
 | implementation         | duration (ms) | ops/sec | input MB/sec | compressed/input ratio |
 | ---------------------- | ------------: | ------: | -----------: | ---------------------: |
-| built-in one-shot      |       2362.70 |   42324 |        43.27 |                  0.058 |
-| nodedc public api      |        734.02 |  136236 |       139.27 |                  0.058 |
-| nodedc prepared native |        690.36 |  144853 |       148.08 |                  0.058 |
+| built-in one-shot async |       7171.85 |   13943 |        14.25 |                  0.057 |
+| nodedc public api       |       1459.19 |   68531 |        70.06 |                  0.058 |
+| nodedc prepared native  |       1420.61 |   70392 |        71.96 |                  0.058 |
 
 Interpretation:
 
-- `built-in one-shot` is Node's built-in `zstdCompressSync()` with a dictionary passed on every call
+- `built-in one-shot async` is Node's built-in `zstdCompress()` with a dictionary passed on every call
 - `nodedc public api` is `PreparedDictionary.compress()`
 - `nodedc prepared native` is the same prepared dictionary path with the JS wrapper overhead removed
 
-The important comparison is `built-in one-shot` vs `nodedc public api`: the
-prepared-dictionary reuse path avoids paying dictionary setup cost on every
-response and is substantially faster on this payload family.
+The important comparison is `built-in one-shot async` vs `nodedc public api`:
+both rows are using async one-shot compression, and the prepared-dictionary
+reuse path is substantially faster on this payload family.
 
 Expect absolute numbers to vary with CPU, Node version, payload shape, and
 dictionary size and quality. The benchmark is most useful as a relative
-comparison between built-in one-shot dictionary compression and prepared
+comparison between built-in async one-shot dictionary compression and prepared
 dictionary reuse.
 
 ## Release automation
