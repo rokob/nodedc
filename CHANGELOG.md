@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0](https://github.com/rokob/nodedc/compare/nodedc-v0.5.0...nodedc-v0.6.0) (2026-03-31)
+
+
+### Features
+
+* clean up transport api and make dictionary operations async ([f534b66](https://github.com/rokob/nodedc/commit/f534b66533f516a6f36da0b4472901f5b4d475ce))
+* make dictionary compression async and complete brotli stream support ([1d333a1](https://github.com/rokob/nodedc/commit/1d333a19b9f07ad70c00a38bc31bfa2a5dfc07f8))
+
 ## [0.5.0](https://github.com/rokob/nodedc/compare/nodedc-v0.4.0...nodedc-v0.5.0) (2026-03-25)
 
 
