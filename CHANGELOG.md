@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/rokob/nodedc/compare/nodedc-v0.6.0...nodedc-v0.6.1) (2026-06-11)
+
+
+### Bug Fixes
+
+* **native:** resolve addon under bundlers and add package-root override ([2384be3](https://github.com/rokob/nodedc/commit/2384be3cce1fb0f12be2a29d24bbaac0c7b15b90))
+
 ## [0.6.0](https://github.com/rokob/nodedc/compare/nodedc-v0.5.0...nodedc-v0.6.0) (2026-03-31)
 
 
