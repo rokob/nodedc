@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2](https://github.com/rokob/nodedc/compare/nodedc-v0.6.1...nodedc-v0.6.2) (2026-06-11)
+
+
+### Bug Fixes
+
+* add require export condition for CJS resolution ([00daa62](https://github.com/rokob/nodedc/commit/00daa62c6474bc8f9b689485650f1fa397d8d814))
+
 ## [0.6.1](https://github.com/rokob/nodedc/compare/nodedc-v0.6.0...nodedc-v0.6.1) (2026-06-11)
 
 
