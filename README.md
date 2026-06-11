@@ -22,6 +22,22 @@ Native shared-dictionary compression for Node.js web servers.
 npm install @rokob/nodedc
 ```
 
+### Bundlers
+
+This package loads a native addon (`.node`) at runtime from its own `build/` or
+`prebuilds/` directory. It locates that directory by resolving its installed
+`package.json`, so it keeps working when a consumer bundles their app with
+rollup, esbuild, webpack, etc.
+
+If automatic resolution fails for an unusual layout (hoisted or symlinked
+monorepos, custom bundler output paths, pnpm's nested `node_modules`), set the
+`NODEDC_PACKAGE_ROOT` environment variable to the package root — the directory
+that contains `build/` and/or `prebuilds/`:
+
+```bash
+NODEDC_PACKAGE_ROOT=/path/to/node_modules/@rokob/nodedc node ./dist/server.js
+```
+
 ## Quick start
 
 ```js

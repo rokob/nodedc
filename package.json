@@ -16,7 +16,8 @@
     ".": {
       "types": "./dist/js/index.d.ts",
       "import": "./dist/js/index.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "bin",

@@ -7,7 +7,56 @@ import { fileURLToPath } from 'node:url';
 import { NativeBindingUnavailableError } from './errors.js';
 
 const require = createRequire(import.meta.url);
-const packageRoot = fileURLToPath(new URL('../../', import.meta.url));
+
+// Candidate roots to search for the compiled/prebuilt native addon, in priority
+// order. Bundlers (rollup, esbuild, webpack, ...) rewrite `import.meta.url` to
+// point at the consumer's bundle rather than this file inside the installed
+// package, which breaks a single relative `../../` lookup. To stay robust we
+// collect several anchors and try each one.
+const packageRoots: string[] = (() => {
+  const roots: string[] = [];
+  const add = (root: string | undefined | null) => {
+    if (root && !roots.includes(root)) {
+      roots.push(path.resolve(root));
+    }
+  };
+
+  // 1. Explicit override. When automatic resolution can't win (hoisted or
+  //    symlinked monorepo layouts, custom bundler output paths, pnpm's nested
+  //    node_modules, ...), a consumer can point NODEDC_PACKAGE_ROOT directly at
+  //    the package root (the directory containing build/ and/or prebuilds/).
+  add(process.env.NODEDC_PACKAGE_ROOT);
+
+  // 2. Resolve the package's own package.json. This points at the real install
+  //    location regardless of where any bundle that imported us ended up. It
+  //    relies on the "./package.json" entry in this package's exports map.
+  try {
+    add(path.dirname(require.resolve('@rokob/nodedc/package.json')));
+  } catch {
+    // Not resolvable (e.g. running from source, or the consumer aliased the
+    // package). Fall through to the relative anchors below.
+  }
+
+  // 3. The original anchor: this file lives at <root>/dist/js/native.js, so the
+  //    package root is two directories up. Correct when we are not bundled.
+  try {
+    add(fileURLToPath(new URL('../../', import.meta.url)));
+  } catch {
+    // import.meta.url may be a non-file URL under some bundlers.
+  }
+
+  // 4. Additional walk-up anchors for unusual bundle layouts where the bundle
+  //    sits one directory shallower or deeper than expected.
+  try {
+    add(fileURLToPath(new URL('../', import.meta.url)));
+    add(fileURLToPath(new URL('../../../', import.meta.url)));
+  } catch {
+    // Ignore non-file URLs.
+  }
+
+  return roots;
+})();
+
 const runtime = process.versions.electron ? 'electron' : 'node';
 const arch = process.env.npm_config_arch || os.arch();
 const platform = process.env.npm_config_platform || os.platform();
@@ -231,7 +280,7 @@ function compareTags(
   return 0;
 }
 
-function resolveNamedBinding(targetName: string): string {
+function resolveNamedBindingInRoot(packageRoot: string, targetName: string): string | null {
   for (const directory of [
     path.join(packageRoot, 'build', 'Release'),
     path.join(packageRoot, 'build', 'Debug'),
@@ -264,8 +313,19 @@ function resolveNamedBinding(targetName: string): string {
     }
   }
 
+  return null;
+}
+
+function resolveNamedBinding(targetName: string): string {
+  for (const packageRoot of packageRoots) {
+    const resolved = resolveNamedBindingInRoot(packageRoot, targetName);
+    if (resolved) {
+      return resolved;
+    }
+  }
+
   throw new Error(
-    `No native build was found for target=${targetName} platform=${platform} arch=${arch} runtime=${runtime} abi=${process.versions.modules} uv=${uv} armv=${armv} libc=${libc} node=${process.versions.node}\n    loaded from: ${packageRoot}\n`,
+    `No native build was found for target=${targetName} platform=${platform} arch=${arch} runtime=${runtime} abi=${process.versions.modules} uv=${uv} armv=${armv} libc=${libc} node=${process.versions.node}\n    searched roots: ${packageRoots.join(', ') || '(none)'}\n`,
   );
 }
 
