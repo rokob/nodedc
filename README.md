@@ -27,7 +27,9 @@ npm install @rokob/nodedc
 This package loads a native addon (`.node`) at runtime from its own `build/` or
 `prebuilds/` directory. It locates that directory by resolving its installed
 `package.json`, so it keeps working when a consumer bundles their app with
-rollup, esbuild, webpack, etc.
+rollup, esbuild, webpack, etc. The package is ESM, but its exports also expose a
+`require` condition so bundlers that resolve under CommonJS can locate it
+(avoiding `ERR_PACKAGE_PATH_NOT_EXPORTED`).
 
 If automatic resolution fails for an unusual layout (hoisted or symlinked
 monorepos, custom bundler output paths, pnpm's nested `node_modules`), set the
