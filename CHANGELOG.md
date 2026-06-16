@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.3](https://github.com/rokob/nodedc/compare/nodedc-v0.6.2...nodedc-v0.6.3) (2026-06-16)
+
+
+### Bug Fixes
+
+* **stream:** emit transport header eagerly and flush encoders per chunk ([0431a1d](https://github.com/rokob/nodedc/commit/0431a1d46c4c60fdc7c45e508772709b01af2488))
+
 ## [0.6.2](https://github.com/rokob/nodedc/compare/nodedc-v0.6.1...nodedc-v0.6.2) (2026-06-11)
 
 
