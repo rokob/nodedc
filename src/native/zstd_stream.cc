@@ -226,14 +226,19 @@ std::vector<std::uint8_t> ZstdCompressor::Process(const std::uint8_t* data, std:
   ZSTD_inBuffer in = {data, size, 0};
   std::vector<std::uint8_t> output;
 
+  // Flush per push so each chunk yields a complete, decodable output prefix.
+  // ZSTD_e_continue lets zstd hold bytes back to fill a block, which can emit
+  // zero output for a small first chunk and stalls streaming TTFB. ZSTD_e_flush
+  // forces a block boundary; the small ratio cost is worth the latency win.
+  const ZSTD_EndDirective directive = end_frame ? ZSTD_e_end : ZSTD_e_flush;
+
   while (true) {
     const std::size_t previous_in = in.pos;
     const std::size_t previous_size = output.size();
     output.resize(previous_size + kOutputChunkSize);
 
     ZSTD_outBuffer out = {output.data() + previous_size, kOutputChunkSize, 0};
-    const size_t remaining =
-        ZSTD_compressStream2(cctx_, &out, &in, end_frame ? ZSTD_e_end : ZSTD_e_continue);
+    const size_t remaining = ZSTD_compressStream2(cctx_, &out, &in, directive);
     if (ZSTD_isError(remaining) != 0U) {
       throw std::runtime_error(std::string("Zstd streaming compression failed: ") +
                                ZSTD_getErrorName(remaining));
@@ -241,11 +246,9 @@ std::vector<std::uint8_t> ZstdCompressor::Process(const std::uint8_t* data, std:
 
     output.resize(previous_size + out.pos);
 
-    if (end_frame) {
-      if (remaining == 0) {
-        break;
-      }
-    } else if (in.pos == in.size) {
+    // For both end and flush, remaining == 0 means everything buffered has been
+    // written out; until then keep looping to drain the encoder.
+    if (in.pos == in.size && remaining == 0) {
       break;
     }
 

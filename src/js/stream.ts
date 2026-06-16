@@ -29,11 +29,26 @@ class NativeCompressorTransform extends Transform {
     _encoding: BufferEncoding,
     callback: (error?: Error | null, data?: Buffer) => void,
   ): void {
+    // Push the transport header out before awaiting the native compressor so the
+    // client can begin decoding immediately — keeping it behind the first
+    // pushAsync() job stalls TTFB by a full worker-thread round-trip.
+    this.#emitHeader();
     void this.#handleOutput(this.nativeStream.pushAsync(chunk), callback);
   }
 
   override _flush(callback: (error?: Error | null, data?: Buffer) => void): void {
+    // Covers empty bodies, where _transform never ran: the header must still go
+    // out, and it must precede the final frame in stream order.
+    this.#emitHeader();
     void this.#handleOutput(this.nativeStream.endAsync(), callback);
+  }
+
+  #emitHeader(): void {
+    if (this.#headerSent || !this.header) {
+      return;
+    }
+    this.#headerSent = true;
+    this.push(this.header);
   }
 
   async #handleOutput(
@@ -42,12 +57,6 @@ class NativeCompressorTransform extends Transform {
   ): Promise<void> {
     try {
       const output = await outputPromise;
-      if (!this.#headerSent && this.header) {
-        this.#headerSent = true;
-        callback(null, Buffer.concat([this.header, output]));
-        return;
-      }
-
       callback(null, output.length > 0 ? output : undefined);
     } catch (error) {
       callback(error instanceof Error ? error : new Error(String(error)));

@@ -216,6 +216,14 @@ std::vector<std::uint8_t> BrotliCompressor::Process(const std::uint8_t* data, st
   const uint8_t* next_in = data;
   std::vector<std::uint8_t> output;
 
+  // Flush per push rather than letting brotli decide when to emit a block.
+  // BROTLI_OPERATION_PROCESS can buffer input internally and produce no output
+  // for a chunk, stalling streaming TTFB. BROTLI_OPERATION_FLUSH guarantees all
+  // accepted input becomes a decodable output prefix at the cost of a little
+  // ratio.
+  const BrotliEncoderOperation operation =
+      finish ? BROTLI_OPERATION_FINISH : BROTLI_OPERATION_FLUSH;
+
   while (true) {
     size_t chunk_size = 0;
     const uint8_t* chunk = BrotliEncoderTakeOutput(state_, &chunk_size);
@@ -224,6 +232,8 @@ std::vector<std::uint8_t> BrotliCompressor::Process(const std::uint8_t* data, st
       continue;
     }
 
+    // A flush/finish is complete once all input is consumed and the encoder has
+    // no buffered output left to hand back.
     if (finish ? BrotliEncoderIsFinished(state_)
                : (available_in == 0 && !BrotliEncoderHasMoreOutput(state_))) {
       break;
@@ -231,14 +241,9 @@ std::vector<std::uint8_t> BrotliCompressor::Process(const std::uint8_t* data, st
 
     size_t available_out = 0;
     uint8_t* next_out = nullptr;
-    if (!BrotliEncoderCompressStream(state_,
-                                     finish ? BROTLI_OPERATION_FINISH : BROTLI_OPERATION_PROCESS,
-                                     &available_in, &next_in, &available_out, &next_out, nullptr)) {
+    if (!BrotliEncoderCompressStream(state_, operation, &available_in, &next_in, &available_out,
+                                     &next_out, nullptr)) {
       throw std::runtime_error("Brotli streaming compression failed.");
-    }
-
-    if (!finish && available_in == 0 && !BrotliEncoderHasMoreOutput(state_)) {
-      break;
     }
   }
 
