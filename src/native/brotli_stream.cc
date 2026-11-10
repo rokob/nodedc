@@ -305,7 +305,11 @@ Napi::Value BrotliDecompressor::Push(const Napi::CallbackInfo& info) {
   }
 
   const auto input = BrotliPreparedDictionary::AsByteVector(info[0], "input");
-  return ToNodeBuffer(env, Process(input.data(), input.size()));
+  try {
+    return ToNodeBuffer(env, Process(input.data(), input.size()));
+  } catch (const std::exception& error) {
+    throw Napi::Error::New(env, error.what());
+  }
 }
 
 Napi::Value BrotliDecompressor::End(const Napi::CallbackInfo& info) {

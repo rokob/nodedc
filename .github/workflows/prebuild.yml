@@ -20,13 +20,13 @@ jobs:
             label: macos-arm64
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22.22.1
+          node-version: 22.23.4
           cache: npm
 
       - run: npm ci
@@ -49,9 +49,9 @@ jobs:
           path: prebuilds
           merge-multiple: true
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22.22.1
+          node-version: 22.23.4
 
       - run: node ./scripts/verify-prebuilds.mjs
 
