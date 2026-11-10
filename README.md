@@ -4,9 +4,16 @@ Native shared-dictionary compression for Node.js web servers.
 
 ## Baseline
 
-- Node `22.22.1+`
+- Node `22.23.4+` (22.x), `24.22.1+` (24.x), or `26.12.1+`
 - ESM only
 - C++ addon using N-API
+
+The native addon bundles Brotli `1.2.1`, which fixes
+[CVE-2026-111497](https://github.com/google/brotli/releases/tag/v1.2.1).
+Loading Brotli-compressed dictionary files with `fromFile()` or `fromFileSync()`
+uses Node's built-in decoder, so the Node runtime must also include the fix.
+The supported versions above include the
+[Node security update](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases).
 
 ## What it does
 
@@ -409,9 +416,12 @@ required header.
 
 ## Development
 
-Build the addon before running tests:
+Initialize the pinned submodules and build the addon before running tests.
+After updating Brotli, rebuild native binaries and any prebuilts so they include
+the patched decoder:
 
 ```bash
+git submodule update --init --recursive
 npm run build
 npm test
 ```
@@ -453,8 +463,8 @@ Example result on an Apple `M1 Max` (`arm64`), macOS `26.1`, Node `v22.20.0`,
 with an `8192` byte trained dictionary and `100000` responses from the same
 payload family:
 
-| implementation         | duration (ms) | ops/sec | input MB/sec | compressed/input ratio |
-| ---------------------- | ------------: | ------: | -----------: | ---------------------: |
+| implementation          | duration (ms) | ops/sec | input MB/sec | compressed/input ratio |
+| ----------------------- | ------------: | ------: | -----------: | ---------------------: |
 | built-in one-shot async |       7171.85 |   13943 |        14.25 |                  0.057 |
 | nodedc public api       |       1459.19 |   68531 |        70.06 |                  0.058 |
 | nodedc prepared native  |       1420.61 |   70392 |        71.96 |                  0.058 |
