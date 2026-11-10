@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.4](https://github.com/rokob/nodedc/compare/nodedc-v0.6.3...nodedc-v0.6.4) (2026-11-10)
+
+
+### Bug Fixes
+
+* **brotli:** update decoder for CVE-2026-111497 ([5ad5b30](https://github.com/rokob/nodedc/commit/5ad5b303b4825a8425838c6109ff84604c30ec86))
+
 ## [0.6.3](https://github.com/rokob/nodedc/compare/nodedc-v0.6.2...nodedc-v0.6.3) (2026-06-16)
 
 
