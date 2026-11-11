@@ -5,6 +5,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to rebuild and publish (for example, nodedc-v0.6.4)
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -29,7 +34,7 @@ jobs:
 
   prebuild:
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    if: ${{ needs.release-please.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '') }}
     strategy:
       fail-fast: false
       matrix:
@@ -38,13 +43,13 @@ jobs:
             label: linux-x64
           - runner: ubuntu-22.04-arm
             label: linux-arm64
-          - runner: macos-14
+          - runner: macos-15
             label: macos-arm64
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.release-please.outputs.sha }}
+          ref: ${{ inputs.release_tag || needs.release-please.outputs.sha }}
           submodules: recursive
 
       - uses: actions/setup-node@v7
@@ -66,13 +71,13 @@ jobs:
     needs:
       - release-please
       - prebuild
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    if: ${{ needs.release-please.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '') }}
     runs-on: ubuntu-latest
     environment: npm
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.release-please.outputs.sha }}
+          ref: ${{ inputs.release_tag || needs.release-please.outputs.sha }}
           submodules: recursive
 
       - uses: actions/setup-node@v7
@@ -95,8 +100,9 @@ jobs:
       - run: npm pack --dry-run
       - run: npm publish --access public
 
-      - run: tar -czf nodedc-prebuilds-${{ needs.release-please.outputs.tag_name }}.tar.gz prebuilds
+      - run: tar -czf nodedc-prebuilds-${{ inputs.release_tag || needs.release-please.outputs.tag_name }}.tar.gz prebuilds
 
       - env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload ${{ needs.release-please.outputs.tag_name }} nodedc-prebuilds-${{ needs.release-please.outputs.tag_name }}.tar.gz --clobber
+          RELEASE_TAG: ${{ inputs.release_tag || needs.release-please.outputs.tag_name }}
+        run: gh release upload "$RELEASE_TAG" "nodedc-prebuilds-$RELEASE_TAG.tar.gz" --clobber
