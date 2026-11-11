@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.5](https://github.com/rokob/nodedc/compare/nodedc-v0.6.4...nodedc-v0.6.5) (2026-11-11)
+
+
+### Bug Fixes
+
+* **cli:** preserve training command bins ([#76](https://github.com/rokob/nodedc/issues/76)) ([2506740](https://github.com/rokob/nodedc/commit/2506740425d89643d3179ce6a13069702e2ca211))
+* **release:** recover release after macOS runner retirement ([#74](https://github.com/rokob/nodedc/issues/74)) ([0525d12](https://github.com/rokob/nodedc/commit/0525d122ab9db0aae0042d84af3c472d01ca799e))
+
 ## [0.6.4](https://github.com/rokob/nodedc/compare/nodedc-v0.6.3...nodedc-v0.6.4) (2026-11-10)
 
 
